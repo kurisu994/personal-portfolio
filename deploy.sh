@@ -126,7 +126,9 @@ cmd_up() {
   local extra=("$@")
   require_docker
   report_plan
-  info "构建并启动容器（宿主机端口 $PORT）..."
+  # 变量必须用 ${} 括起：macOS 自带的 bash 3.2 存在多字节解析缺陷，
+  # $PORT 紧跟全角括号时，会把括号的首字节并入变量名，导致 unbound variable。
+  info "构建并启动容器（宿主机端口 ${PORT}）..."
   compose up --detach --build "${extra[@]+"${extra[@]}"}"
   if wait_ready; then
     ok "站点已启动：$(base_url)/"
@@ -171,13 +173,26 @@ cmd_check() {
       [ "$code" = '000' ] && connection_failed=1
     fi
 
-    # 结尾斜杠重定向：工程版 HTML 内全部使用相对资源路径，
-    # 缺斜杠会让 ./static/... 解析错误，必须确认 nginx 会补斜杠。
+    # 结尾斜杠重定向：工程版资源全是相对路径，缺斜杠会让 ./static/... 解析到
+    # 站点根而整站 404。这里不只验证状态码，还跟随重定向确认最终地址正确：
+    # 若 Location 是绝对 URL，nginx 会用容器内端口（80）拼接，从而丢掉宿主机
+    # 映射端口、并在 HTTPS 下退化成 http，因此必须断言最终落到预期地址。
     slash_code="$(http_code "$base/$route")"
+    expected="$base/$route/"
+    effective="$(curl --silent --output /dev/null --location --max-time 10 \
+      --write-out '%{url_effective}' "$base/$route" 2>/dev/null)" || effective=''
     if [ "$slash_code" = '301' ] || [ "$slash_code" = '302' ]; then
-      printf '%s      结尾斜杠重定向 %s -> 301%s\n' "$C_DIM" "$base/$route" "$C_OFF"
+      if [ "$effective" = "$expected" ]; then
+        printf '%s      结尾斜杠重定向 %s -> %s%s\n' "$C_DIM" "$base/$route" "$expected" "$C_OFF"
+      else
+        warn "结尾斜杠重定向 $base/$route 最终落在 $effective，预期 $expected"
+        failures=$((failures + 1))
+      fi
     elif [ "$slash_code" = '404' ]; then
       warn "结尾斜杠      $base/$route 返回 404，子目录访问将失效"
+      failures=$((failures + 1))
+    else
+      warn "结尾斜杠      $base/$route 返回 $slash_code，预期 301"
       failures=$((failures + 1))
     fi
   done <<< "$works"

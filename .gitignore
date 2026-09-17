@@ -8,3 +8,6 @@
 
 # Windows
 Thumbs.db
+
+# 工具输出（如 Playwright MCP 的截图与控制台日志）
+.playwright-mcp/

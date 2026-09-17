@@ -46,6 +46,7 @@ const document = `<!doctype html>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#f6f2e9" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath fill='%238e987d' d='M3 14 29 28 57 8 37 38 31 55 24 34Z'/%3E%3C/svg%3E" />
     <title>${escapeHtml(manifest.title)}</title>
     <meta name="description" content="${escapeHtml(manifest.description)}" />
     <style>
