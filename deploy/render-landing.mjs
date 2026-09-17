@@ -227,7 +227,7 @@ const document = `<!doctype html>
 ${cards}
     </ul>
 
-    <footer>共 ${works.length} 件作品 · 源代码以 <a href="./LICENSE">MIT 许可</a> 发布，画面、配乐与诗歌文本保留所有权利</footer>
+    <footer>共 ${works.length} 件作品 · 画面、配乐与诗歌文本保留所有权利 · <a href="./LICENSE">源代码采用 MIT 许可</a></footer>
   </body>
 </html>
 `;
