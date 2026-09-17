@@ -1,0 +1,36 @@
+# 作品集站点。
+#
+# 构建上下文是仓库根目录（compose 的相对路径以本文件所在目录为基准，
+# 因此 context 为 .. ；dockerfile 相对 context 解析）。
+#
+# 常用命令都封装在仓库根目录的 deploy.sh 里，直接调用 compose 也可以：
+#   docker compose -f deploy/compose.yaml up -d --build
+
+name: personal-portfolio
+
+services:
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        # 留空则跳过 og:image 绝对化，容器内仍以相对路径正常工作。
+        SITE_BASE_URL: ${SITE_BASE_URL:-}
+    image: personal-portfolio:local
+    container_name: personal-portfolio
+    ports:
+      # 默认映射到 8080，避免占用 80（既需要 root，也容易与已有服务冲突）。
+      - "${PORT:-8080}:80"
+    restart: unless-stopped
+    healthcheck:
+      # nginx:alpine 自带 busybox wget，无需额外安装工具。
+      test: ["CMD", "wget", "--quiet", "--spider", "http://127.0.0.1/"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

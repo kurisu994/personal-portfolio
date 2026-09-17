@@ -1,0 +1,21 @@
+{
+  "title": "个人作品集",
+  "tagline": "把远方折成翅膀，把此刻交还给风。",
+  "description": "同一件作品的两种实现：一边刻意不用任何第三方依赖，一边建立在现代前端工具链之上。",
+  "works": [
+    {
+      "route": "migration",
+      "name": "候鸟 · MIGRATION",
+      "variant": "简易版",
+      "summary": "零第三方依赖的单文件实现。全部画面由 Canvas 2D 手写，配乐以 Base64 内嵌，运行时不发起任何网络请求。",
+      "stack": "原生 JavaScript · Canvas 2D · WebAudio"
+    },
+    {
+      "route": "migration-showcase",
+      "name": "候鸟 · MIGRATION",
+      "variant": "工程版",
+      "summary": "基于 React 与 Three.js 的工程化实现。程序化地形、连续气候锋面、十六个镜位的导演系统，并附带四组自动化验收脚本。",
+      "stack": "React · TypeScript · Three.js · Rsbuild"
+    }
+  ]
+}

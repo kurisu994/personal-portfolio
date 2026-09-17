@@ -16,6 +16,7 @@
 ## 目录约定
 
 - 一件作品 = 一个子目录，目录名用小写英文。
+- `deploy/` 与根目录的 `deploy.sh` 是部署基础设施，不是作品。
 - 每件作品自带 `README.md`，写清玩法、开发、构建与部署方式；根目录不重复这些内容。
 - 依赖、构建产物和缓存由各作品目录内的 `.gitignore` 管理，互不影响。
 - 第三方依赖的许可证副本放在作品自己的构建输入目录内（如 `public/`），构建会将其原样复制进部署产物，署名声明才能随站点一并分发；不要挪到作品目录之外。
@@ -35,14 +36,30 @@ pnpm install --frozen-lockfile
 pnpm dev
 ```
 
-`migration-showcase/` 另附类型检查、构建和四组验收脚本（`pnpm typecheck`、`pnpm build`、`pnpm verify:model` / `verify:river` / `verify:simulation` / `verify:visual`），部署方式见 [`migration-showcase/README.md`](./migration-showcase/README.md)。
+`migration-showcase/` 另附类型检查、构建和四组验收脚本（`pnpm typecheck`、`pnpm build`、`pnpm verify:model` / `verify:river` / `verify:simulation` / `verify:visual`），作品自身的构建方式见 [`migration-showcase/README.md`](./migration-showcase/README.md)。
+
+## 部署
+
+仓库内所有作品由单个 nginx 容器统一发布，入口是根目录的 [`deploy.sh`](./deploy.sh)：
+
+```sh
+./deploy.sh          # 构建镜像并启动，默认 http://127.0.0.1:8080/
+./deploy.sh check    # 逐个请求入口页与每件作品，验证是否真的能打开
+./deploy.sh down     # 停止
+
+# 正式发布：设置站点根地址，使社交分享卡片能取到图
+SITE_BASE_URL=https://example.com/ ./deploy.sh up
+```
+
+发布后的站点结构为 `/`（作品入口页）、`/migration/`、`/migration-showcase/`。目标机器只需安装 Docker，构建全部发生在镜像内，宿主机不需要 Node.js、pnpm 或 nginx。架构、HTTPS 终止方式、新增作品的接线步骤与故障排查见 [`deploy/README.md`](./deploy/README.md)。
 
 ## 新增一件作品
 
 1. 在根目录创建子目录，例如 `new-work/`。
 2. 放入源码，并按自己的技术栈写一份 `.gitignore`。
-3. 在目录内写 `README.md`，说明运行和部署方式。
+3. 在目录内写 `README.md`，说明运行和构建方式。
 4. 回到本文件，在「作品索引」表格里补一行。
+5. 按 [`deploy/README.md`](./deploy/README.md) 的「新增一件作品」把它接进部署，然后跑一次 `./deploy.sh check`。
 
 ## 许可证
 
