@@ -16,6 +16,8 @@
 #
 # 环境变量：
 #   PORT                      宿主机端口，默认 8080
+#   BIND_HOST                 绑定地址，默认 127.0.0.1（仅本机可访问）
+#                             反向代理场景保持默认；需局域网直连时改为 0.0.0.0
 #   SITE_BASE_URL             站点根地址，例如 https://example.com/
 #                             设置后会把工程版的 og:image 改写成绝对地址，
 #                             使社交平台的分享卡片能取到图。
@@ -34,6 +36,7 @@ readonly PROJECT_NAME="personal-portfolio"
 readonly INFRA_DIRS=$'deploy\n'
 
 export PORT="${PORT:-8080}"
+export BIND_HOST="${BIND_HOST:-127.0.0.1}"
 export SITE_BASE_URL="${SITE_BASE_URL:-}"
 
 if [ -t 1 ]; then
@@ -128,7 +131,7 @@ cmd_up() {
   report_plan
   # 变量必须用 ${} 括起：macOS 自带的 bash 3.2 存在多字节解析缺陷，
   # $PORT 紧跟全角括号时，会把括号的首字节并入变量名，导致 unbound variable。
-  info "构建并启动容器（宿主机端口 ${PORT}）..."
+  info "构建并启动容器（监听 ${BIND_HOST}:${PORT}）..."
   compose up --detach --build "${extra[@]+"${extra[@]}"}"
   if wait_ready; then
     ok "站点已启动：$(base_url)/"

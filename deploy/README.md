@@ -49,6 +49,7 @@ open http://127.0.0.1:8080/
 | 变量 | 默认值 | 说明 |
 | --- | --- | --- |
 | `PORT` | `8080` | 宿主机端口。默认不用 80，避免需要 root 和与已有服务冲突。 |
+| `BIND_HOST` | `127.0.0.1` | 绑定地址。默认只绑回环，容器不经反向代理无法从外部访问；需局域网直连时改为 `0.0.0.0`。 |
 | `SITE_BASE_URL` | 空 | 站点根地址，例如 `https://example.com/`。设置后会在构建期把工程版的相对 `og:image` 改写为绝对地址，并补上 `canonical` 与 `og:url`。留空则完全跳过。 |
 
 正式对外发布时建议设置 `SITE_BASE_URL`，否则社交平台的分享卡片取不到图：
@@ -72,7 +73,23 @@ SITE_BASE_URL=https://example.com/ ./deploy.sh up
 
 两种常见做法：
 
-1. **已有反向代理**（Nginx / Traefik / 云负载均衡）：把 `https://example.com/` 转发到 `127.0.0.1:8080`，并放行 `Upgrade` 与 `Host` 头。
+1. **已有反向代理**（Nginx / Traefik / Caddy / 云负载均衡）：把 `https://example.com/` 转发到 `127.0.0.1:8080`。这是**推荐形态**：容器保持 `BIND_HOST` 默认值只绑回环，不直接暴露公网。
+
+   以 Caddy 为例，追加一个站点块即可（不要动已有站点）：
+
+   ```caddyfile
+   example.com, www.example.com {
+       reverse_proxy 127.0.0.1:8080
+   }
+   ```
+
+   Caddy 会自动申请证书并处理 HTTP→HTTPS 跳转。改完先校验再平滑重载，避免中断在运行中的服务：
+
+   ```sh
+   caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+   systemctl reload caddy      # 走 ExecReload，零停机
+   ```
+
 2. **没有反向代理**：另起一个 Caddy 容器负责证书，反代到本服务。
 
 无论哪种，都必须保证访问地址**保留结尾斜杠**（见下文）。
