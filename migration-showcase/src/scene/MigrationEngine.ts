@@ -171,7 +171,9 @@ export class MigrationEngine {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 0.9;
     this.renderer.shadowMap.enabled = !this.isTouch;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    // three r186 已移除 PCFSoftShadowMap 的软阴影实现：传入它会触发一条警告并
+    // 被就地改回 PCFShadowMap，实际效果与这里直接写 PCFShadowMap 完全一致。
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
 
     this.scene.fog = this.fog;
     this.scene.add(this.camera, this.hemisphere, this.sun, this.fill);
