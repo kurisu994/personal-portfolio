@@ -1,0 +1,372 @@
+:root {
+  color-scheme: light;
+  --paper: #f6f2e9;
+  --ink: #3a362c;
+  --muted: rgb(58 54 44 / 58%);
+  --faint: rgb(58 54 44 / 34%);
+  --line: rgb(58 54 44 / 14%);
+  --moss: #6f7a5a;
+  --serif: 'Noto Serif SC Variable', 'Songti SC', 'STSong', Georgia, serif;
+  --sans: 'Helvetica Neue', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-family: var(--sans);
+  font-synthesis: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: var(--paper);
+}
+
+body {
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button {
+  margin: 0;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  cursor: pointer;
+  letter-spacing: 0.02em;
+}
+
+.stage {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.stage__canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  /* 触摸绘制时不要滚动页面 */
+  touch-action: none;
+  cursor: crosshair;
+}
+
+/* 界面浮在画面上方，但不拦截指针，只有具体控件才接收事件。 */
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: clamp(16px, 2.6vw, 40px);
+  pointer-events: none;
+  color: var(--ink);
+}
+
+.overlay > * {
+  pointer-events: auto;
+}
+
+.overlay__header {
+  align-self: flex-start;
+  max-width: 26ch;
+}
+
+.title {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: clamp(24px, 3.4vw, 40px);
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  line-height: 1.1;
+}
+
+.title__en {
+  display: block;
+  margin-top: 0.35em;
+  color: var(--faint);
+  font-family: var(--sans);
+  font-size: 0.3em;
+  font-weight: 500;
+  letter-spacing: 0.42em;
+}
+
+.subtitle {
+  margin: 0.9em 0 0;
+  color: var(--muted);
+  font-family: var(--serif);
+  font-size: clamp(12px, 1.1vw, 14px);
+  line-height: 1.7;
+}
+
+.controls {
+  position: absolute;
+  top: clamp(16px, 2.6vw, 40px);
+  right: clamp(16px, 2.6vw, 40px);
+  display: flex;
+  gap: 6px;
+}
+
+.control {
+  padding: 7px 14px;
+  color: var(--muted);
+  font-size: 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  transition: color 0.25s ease, border-color 0.25s ease, background-color 0.25s ease;
+}
+
+.control:hover {
+  color: var(--ink);
+  border-color: var(--faint);
+}
+
+.control[aria-pressed='true'] {
+  color: var(--paper);
+  background: var(--moss);
+  border-color: var(--moss);
+}
+
+.status {
+  position: absolute;
+  left: clamp(16px, 2.6vw, 40px);
+  bottom: clamp(16px, 2.6vw, 40px);
+  width: min(30ch, 60vw);
+}
+
+.status__phase {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  margin: 0 0 10px;
+  color: var(--moss);
+  font-family: var(--serif);
+  font-size: 13px;
+  letter-spacing: 0.22em;
+}
+
+.status__coverage {
+  color: var(--faint);
+  font-family: var(--sans);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+
+.status__morph {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  margin: 0;
+  font-family: var(--serif);
+  font-size: clamp(20px, 2.2vw, 28px);
+  letter-spacing: 0.1em;
+}
+
+.status__morph-en {
+  color: var(--faint);
+  font-family: var(--sans);
+  font-size: 0.42em;
+  letter-spacing: 0.32em;
+}
+
+.status__note {
+  margin: 8px 0 12px;
+  color: var(--muted);
+  font-family: var(--serif);
+  font-size: 12.5px;
+  line-height: 1.7;
+}
+
+.status__track {
+  width: 100%;
+  height: 1px;
+  background: var(--line);
+}
+
+.status__bar {
+  height: 100%;
+  background: var(--moss);
+  transform-origin: left center;
+  transform: scaleX(0);
+  transition: transform 0.4s linear;
+}
+
+.status__speed,
+.status__warn {
+  margin: 10px 0 0;
+  color: var(--faint);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+}
+
+.morphs {
+  position: absolute;
+  right: clamp(16px, 2.6vw, 40px);
+  bottom: clamp(16px, 2.6vw, 40px);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-end;
+}
+
+.morph {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  color: var(--faint);
+  font-family: var(--serif);
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  transition: color 0.25s ease;
+}
+
+.morph:hover {
+  color: var(--muted);
+}
+
+.morph--active {
+  color: var(--ink);
+}
+
+.morph__index {
+  color: var(--faint);
+  font-family: var(--sans);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+}
+
+.poem {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(34ch, 72vw);
+  margin: 0;
+  text-align: center;
+  transform: translate(-50%, -50%);
+  animation: poem-in 1.6s ease both;
+  pointer-events: none !important;
+}
+
+.poem__zh {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: clamp(15px, 1.7vw, 21px);
+  line-height: 2;
+  letter-spacing: 0.14em;
+  white-space: pre-line;
+  text-shadow: 0 0 18px rgb(246 242 233 / 85%);
+}
+
+.poem__en {
+  margin-top: 1.1em;
+  color: var(--faint);
+  font-size: clamp(10px, 0.95vw, 12px);
+  line-height: 1.9;
+  letter-spacing: 0.06em;
+  white-space: pre-line;
+}
+
+@keyframes poem-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% + 10px));
+  }
+
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%);
+  }
+}
+
+.hint {
+  position: absolute;
+  bottom: clamp(16px, 2.6vw, 40px);
+  left: 50%;
+  margin: 0;
+  padding: 8px 18px;
+  color: var(--muted);
+  font-size: 11.5px;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgb(246 242 233 / 72%);
+  transform: translateX(-50%);
+  transition: opacity 0.9s ease, visibility 0.9s;
+  backdrop-filter: blur(3px);
+}
+
+.hint--hidden {
+  visibility: hidden;
+  opacity: 0;
+}
+
+.fallback {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 24px;
+  color: var(--ink);
+  text-align: center;
+}
+
+.fallback h1 {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 24px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+}
+
+.fallback p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+.fallback__hint {
+  color: var(--faint) !important;
+}
+
+@media (max-width: 720px) {
+  .poem {
+    top: 42%;
+  }
+
+  .morphs {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    max-width: 70vw;
+  }
+
+  .hint {
+    font-size: 10.5px;
+    white-space: normal;
+    max-width: 82vw;
+    text-align: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .poem {
+    animation: none;
+  }
+
+  .status__bar {
+    transition: none;
+  }
+}

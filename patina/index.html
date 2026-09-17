@@ -1,0 +1,806 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#f6f2e9" />
+    <meta name="description" content="苔痕 · PATINA 简易版。零第三方依赖的单文件反应扩散，全部画面由 Canvas 2D 手写。" />
+    <title>苔痕 · PATINA（简易版）</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --paper: #f6f2e9;
+        --ink: #3a362c;
+        --muted: rgb(58 54 44 / 58%);
+        --faint: rgb(58 54 44 / 34%);
+        --line: rgb(58 54 44 / 14%);
+        --moss: #6f7a5a;
+        --serif: "Songti SC", "Noto Serif CJK SC", "STSong", Georgia, serif;
+        --sans: "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif;
+      }
+
+      * { box-sizing: border-box; }
+
+      html, body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background: var(--paper);
+        font-family: var(--sans);
+      }
+
+      body { overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
+
+      #stage {
+        position: absolute;
+        inset: 0;
+        display: block;
+        width: 100%;
+        height: 100%;
+        touch-action: none;
+        cursor: crosshair;
+      }
+
+      .hud {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: clamp(16px, 2.6vw, 40px);
+        color: var(--ink);
+        pointer-events: none;
+      }
+
+      .hud > * { pointer-events: auto; }
+
+      .title {
+        margin: 0;
+        font-family: var(--serif);
+        font-size: clamp(22px, 3.2vw, 36px);
+        font-weight: 500;
+        letter-spacing: 0.14em;
+        line-height: 1.1;
+      }
+
+      .title__en {
+        display: block;
+        margin-top: 0.4em;
+        color: var(--faint);
+        font-family: var(--sans);
+        font-size: 0.3em;
+        letter-spacing: 0.42em;
+      }
+
+      .title__variant {
+        margin: 0.9em 0 0;
+        color: var(--muted);
+        font-family: var(--serif);
+        font-size: 12px;
+        line-height: 1.7;
+      }
+
+      .status {
+        position: absolute;
+        left: clamp(16px, 2.6vw, 40px);
+        bottom: clamp(16px, 2.6vw, 40px);
+      }
+
+      .status__phase {
+        margin: 0 0 8px;
+        color: var(--moss);
+        font-family: var(--serif);
+        font-size: 13px;
+        letter-spacing: 0.22em;
+      }
+
+      .status__morph {
+        margin: 0;
+        font-family: var(--serif);
+        font-size: clamp(18px, 2vw, 24px);
+        letter-spacing: 0.1em;
+      }
+
+      .status__track {
+        width: min(200px, 40vw);
+        height: 1px;
+        margin-top: 12px;
+        background: var(--line);
+      }
+
+      .status__bar {
+        height: 100%;
+        background: var(--moss);
+        transform: scaleX(0);
+        transform-origin: left center;
+      }
+
+      .poem {
+        position: absolute;
+        top: 48%;
+        left: 50%;
+        width: min(34ch, 74vw);
+        margin: 0;
+        text-align: center;
+        transform: translate(-50%, -50%);
+        animation: poem-in 1.6s ease both;
+      }
+
+      .poem__zh {
+        margin: 0;
+        font-family: var(--serif);
+        font-size: clamp(15px, 1.7vw, 20px);
+        line-height: 2;
+        letter-spacing: 0.14em;
+        white-space: pre-line;
+        text-shadow: 0 0 18px rgb(246 242 233 / 85%);
+      }
+
+      .poem__en {
+        margin-top: 1em;
+        color: var(--faint);
+        font-size: clamp(10px, 0.95vw, 12px);
+        line-height: 1.9;
+        white-space: pre-line;
+      }
+
+      @keyframes poem-in {
+        from { opacity: 0; transform: translate(-50%, calc(-50% + 10px)); }
+        to { opacity: 1; transform: translate(-50%, -50%); }
+      }
+
+      .hint {
+        position: absolute;
+        bottom: clamp(16px, 2.6vw, 40px);
+        left: 50%;
+        margin: 0;
+        padding: 8px 18px;
+        color: var(--muted);
+        font-size: 11.5px;
+        white-space: nowrap;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: rgb(246 242 233 / 72%);
+        transform: translateX(-50%);
+        transition: opacity 0.9s ease, visibility 0.9s;
+      }
+
+      .hint--hidden { visibility: hidden; opacity: 0; }
+
+      .notice {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: min(30ch, 76vw);
+        margin: 0;
+        color: var(--muted);
+        font-family: var(--serif);
+        font-size: 13px;
+        line-height: 1.9;
+        text-align: center;
+        transform: translate(-50%, -50%);
+      }
+
+      @media (max-width: 720px) {
+        .poem { top: 42%; }
+        .hint { font-size: 10.5px; white-space: normal; max-width: 82vw; text-align: center; }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .poem { animation: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="stage"></canvas>
+
+    <div class="hud">
+      <header>
+        <h1 class="title">
+          苔痕
+          <span class="title__en">PATINA</span>
+        </h1>
+        <p class="title__variant">简易版 · 零第三方依赖 · 不发起任何网络请求</p>
+      </header>
+
+      <section class="status">
+        <p class="status__phase" id="phase">播种</p>
+        <p class="status__morph" id="morph">茂密</p>
+        <div class="status__track"><div class="status__bar" id="bar"></div></div>
+      </section>
+
+      <figure class="poem" id="poem">
+        <blockquote class="poem__zh" id="poem-zh"></blockquote>
+        <figcaption class="poem__en" id="poem-en"></figcaption>
+      </figure>
+
+      <p class="hint" id="hint">点一下播种，拖动涂抹，按住不动或按住 Shift 擦除 · 空格暂停</p>
+    </div>
+
+    <script>
+      (() => {
+        'use strict';
+
+        // ═══ 参数（与工程版同源） ════════════════════════════════════════
+        // 扩散系数与形态族参数和 patina-showcase/src/core/presets.ts 完全一致，
+        // 两版因此长出同一种苔。改动请同时改两处，并重跑工程版的 verify:patina。
+
+        const SIM_WIDTH = 256;
+        const SIM_HEIGHT = 256;
+        const SIM_SIZE = SIM_WIDTH * SIM_HEIGHT;
+        const STEPS_PER_FRAME = 8;
+        const DU = 1.0;
+        const DV = 0.5;
+
+        const ROAM_DWELL = 38;
+        const ROAM_BLEND = 8;
+        const SEED_DURATION = 0.8;
+        const FLUSH_DURATION = 2.5;
+        // 覆盖率随分辨率上升，阀值要贴近 1，否则「茂密」会反复触发重生。
+        const SATURATION_THRESHOLD = 0.995;
+        const SATURATION_HOLD = 10;
+
+        // 顺序即漫游顺序，按覆盖率递增：从稀疏的斑点长到铺满，然后冲刷重来。
+        // 不能改成「茂密 → 稀疏」——Gray-Scott 铺满之后 U 已耗尽，
+        // 切到任何稀疏形态都会让画面直接变成白纸且长不回来。
+        const MORPHS = {
+          spots: { name: '斑点', feed: 0.03, kill: 0.062 },
+          mitosis: { name: '细胞分裂', feed: 0.0367, kill: 0.063 },
+          maze: { name: '迷宫', feed: 0.029, kill: 0.057 },
+          coral: { name: '珊瑚', feed: 0.0545, kill: 0.062 },
+          bloom: { name: '茂密', feed: 0.05, kill: 0.06 },
+        };
+
+        // 漫游折线：按覆盖率递排之后，段段都落在有图案的窄带内，
+        // 不需要额外的绕行路点。最后一段 bloom → spots 由冲刷替代。
+        const PATH = [
+          { id: 'spots', dwell: ROAM_DWELL },
+          { id: 'mitosis', dwell: ROAM_DWELL },
+          { id: 'maze', dwell: ROAM_DWELL },
+          { id: 'coral', dwell: ROAM_DWELL },
+          { id: 'bloom', dwell: ROAM_DWELL },
+        ];
+
+        // 把路点补全成 { feed, kill, dwell, owner }——过渡点归属最近的上一个形态族。
+        const WAYPOINTS = PATH.map((point, index) => {
+          if (point.id) {
+            const morph = MORPHS[point.id];
+            return { feed: morph.feed, kill: morph.kill, dwell: point.dwell, owner: point.id };
+          }
+          for (let back = 1; back <= PATH.length; back += 1) {
+            const previous = PATH[(index - back + PATH.length) % PATH.length];
+            if (previous.id) {
+              return { feed: point.feed, kill: point.kill, dwell: point.dwell, owner: previous.id };
+            }
+          }
+          throw new Error('漫游路径缺少形态族');
+        });
+
+        const SEGMENTS = WAYPOINTS.map((from, index) => ({
+          from,
+          to: WAYPOINTS[(index + 1) % WAYPOINTS.length],
+          hold: from.dwell,
+          travel: ROAM_BLEND,
+        }));
+        const CYCLE = SEGMENTS.reduce((total, segment) => total + segment.hold + segment.travel, 0);
+
+        /** 取漫游折线上某时刻的参数与形态。 */
+        function pathAt(elapsed) {
+          const wrapped = ((elapsed % CYCLE) + CYCLE) % CYCLE;
+          let cursor = 0;
+          for (const segment of SEGMENTS) {
+            const span = segment.hold + segment.travel;
+            if (wrapped < cursor + span) {
+              const within = wrapped - cursor;
+              const blend = within <= segment.hold ? 0 : (within - segment.hold) / segment.travel;
+              return {
+                feed: segment.from.feed + (segment.to.feed - segment.from.feed) * blend,
+                kill: segment.from.kill + (segment.to.kill - segment.from.kill) * blend,
+                morph: segment.from.owner,
+                progress: wrapped / CYCLE,
+              };
+            }
+            cursor += span;
+          }
+          return { feed: WAYPOINTS[0].feed, kill: WAYPOINTS[0].kill, morph: WAYPOINTS[0].owner, progress: 0 };
+        }
+
+        const POEMS = [
+          { zh: '纸是安静的，苔也是。\n它们都不急着让谁看见。', en: 'Paper is quiet. So is moss.\nNeither is in a hurry to be seen.' },
+          { zh: '长满一面墙要很多年，\n我只用了一个下午。', en: 'A wall takes years to be covered.\nI only took an afternoon.' },
+          { zh: '最先来的那一点，\n没有人记得它落在哪里。', en: 'Nobody remembers where\nthe very first speck landed.' },
+          { zh: '痕迹不是被抹掉的，\n是被新的痕迹盖住的。', en: 'Marks are not erased.\nThey are covered by newer ones.' },
+          { zh: '边缘一直在长，\n所以中心看起来从没动过。', en: 'The edge keeps growing,\nso the center looks untouched.' },
+          { zh: '慢的东西不需要被等待。\n它只需要不被打断。', en: 'Slow things need no waiting.\nThey only need not to be interrupted.' },
+          { zh: '我数不清有几处苔，\n但每一处都算数。', en: 'I cannot count the patches of moss,\nbut every one of them counts.' },
+          { zh: '覆盖不是占有，\n只是待得久了。', en: 'Covering is not possession.\nIt is simply staying long enough.' },
+          { zh: '洗掉以后，\n纸还是那张纸。', en: 'After it is washed away,\nthe paper is still that paper.' },
+          { zh: '又一次，\n从一点点开始。', en: 'Once again,\nit begins with just a little.' },
+        ];
+
+        // ═══ 纸墨色阶 ═══════════════════════════════════════════════════
+        // 预计算成 256 项查找表：渲染内层循环里只做数组取值，不算插值。
+        const STOPS = [
+          { at: 0, color: [0xf6, 0xf2, 0xe9] },
+          { at: 0.22, color: [0xcb, 0xb8, 0x94] },
+          { at: 0.48, color: [0x6f, 0x7a, 0x5a] },
+          { at: 0.74, color: [0x46, 0x50, 0x3a] },
+          { at: 1, color: [0x3a, 0x36, 0x2c] },
+        ];
+
+        const LUT_R = new Uint8Array(256);
+        const LUT_G = new Uint8Array(256);
+        const LUT_B = new Uint8Array(256);
+
+        for (let index = 0; index < 256; index += 1) {
+          const value = index / 255;
+          let from = STOPS[0];
+          let to = STOPS[STOPS.length - 1];
+          for (let stop = 1; stop < STOPS.length; stop += 1) {
+            if (value <= STOPS[stop].at) {
+              from = STOPS[stop - 1];
+              to = STOPS[stop];
+              break;
+            }
+          }
+          const span = to.at - from.at;
+          const local = span === 0 ? 0 : Math.min(1, Math.max(0, (value - from.at) / span));
+          const smooth = local * local * (3 - 2 * local);
+          LUT_R[index] = Math.round(from.color[0] + (to.color[0] - from.color[0]) * smooth);
+          LUT_G[index] = Math.round(from.color[1] + (to.color[1] - from.color[1]) * smooth);
+          LUT_B[index] = Math.round(from.color[2] + (to.color[2] - from.color[2]) * smooth);
+        }
+
+        // ═══ 反应扩散场（Float32） ══════════════════════════════════════
+        // 这里必须用浮点，不能用 8 位定点。定点看着够用，实测却会毁掉
+        // 稀疏形态：V 的小值梯度被 1/255 的量化抹平，图案维持不住。
+        //
+        // 256² 网格、25000 步、与 Float64 参考对比的覆盖率：
+        //   spots    0.233 → 0.015   mitosis  0.311 → 0.022
+        //   maze     0.424 → 0.450   coral    0.529 → 0.025
+        //   bloom    0.966 → 0.802
+        // 只有 maze 恰好正常——第一次验证时只测了它，因此得出了错误结论。
+        // Float32 则全部吻合（误差 < 0.01），内存 2 MB 也不值一提。
+
+        const xMinus = new Int32Array(SIM_WIDTH);
+        const xPlus = new Int32Array(SIM_WIDTH);
+        for (let x = 0; x < SIM_WIDTH; x += 1) {
+          xMinus[x] = x === 0 ? SIM_WIDTH - 1 : x - 1;
+          xPlus[x] = x === SIM_WIDTH - 1 ? 0 : x + 1;
+        }
+        const yMinus = new Int32Array(SIM_HEIGHT);
+        const yPlus = new Int32Array(SIM_HEIGHT);
+        for (let y = 0; y < SIM_HEIGHT; y += 1) {
+          yMinus[y] = y === 0 ? SIM_HEIGHT - 1 : y - 1;
+          yPlus[y] = y === SIM_HEIGHT - 1 ? 0 : y + 1;
+        }
+
+        let stateU = new Float32Array(SIM_SIZE).fill(1);
+        let stateV = new Float32Array(SIM_SIZE);
+        let nextU = new Float32Array(SIM_SIZE);
+        let nextV = new Float32Array(SIM_SIZE);
+
+        const ORTHO_SCALE = 0.2;
+        const DIAGONAL_SCALE = 0.05;
+
+        // 冲刷用的到中心距离只在初始化时算一次：它是定值，放在内层循环里
+        // 每帧要多算 50 万次开方。
+        const flushDistance = new Float32Array(SIM_SIZE);
+        for (let y = 0; y < SIM_HEIGHT; y += 1) {
+          const dy = y / SIM_HEIGHT - 0.5;
+          for (let x = 0; x < SIM_WIDTH; x += 1) {
+            const dx = x / SIM_WIDTH - 0.5;
+            flushDistance[y * SIM_WIDTH + x] = Math.sqrt(dx * dx + dy * dy);
+          }
+        }
+
+        function simulate(feed, kill, steps, flushRadius) {
+          const flushing = flushRadius > 0;
+          for (let pass = 0; pass < steps; pass += 1) {
+            for (let y = 0; y < SIM_HEIGHT; y += 1) {
+              const row = y * SIM_WIDTH;
+              const rowUp = yMinus[y] * SIM_WIDTH;
+              const rowDown = yPlus[y] * SIM_WIDTH;
+
+              for (let x = 0; x < SIM_WIDTH; x += 1) {
+                const index = row + x;
+                const left = xMinus[x];
+                const right = xPlus[x];
+                const centerU = stateU[index];
+                const centerV = stateV[index];
+
+                const lapU =
+                  (stateU[rowUp + x] + stateU[rowDown + x] + stateU[row + left] + stateU[row + right]) * ORTHO_SCALE +
+                  (stateU[rowUp + left] + stateU[rowUp + right] + stateU[rowDown + left] + stateU[rowDown + right]) * DIAGONAL_SCALE -
+                  centerU;
+
+                const lapV =
+                  (stateV[rowUp + x] + stateV[rowDown + x] + stateV[row + left] + stateV[row + right]) * ORTHO_SCALE +
+                  (stateV[rowUp + left] + stateV[rowUp + right] + stateV[rowDown + left] + stateV[rowDown + right]) * DIAGONAL_SCALE -
+                  centerV;
+
+                const reaction = centerU * centerV * centerV;
+                let u = centerU + DU * lapU - reaction + feed * (1 - centerU);
+                let v = centerV + DV * lapV + reaction - (kill + feed) * centerV;
+
+                if (flushing) {
+                  // 重生：一圈水渍从中心向外洇开。
+                  const distance = flushDistance[index];
+                  const inner = flushRadius - 0.25;
+                  if (distance < flushRadius) {
+                    const front = distance <= inner ? 1 : 1 - (distance - inner) / 0.25;
+                    u += (1 - u) * front;
+                    v += 0 - v * front;
+                  }
+                }
+
+                // 与 GPU 版一致地钳到 [0,1]，防止极端参数下发散。
+                nextU[index] = u <= 0 ? 0 : u >= 1 ? 1 : u;
+                nextV[index] = v <= 0 ? 0 : v >= 1 ? 1 : v;
+              }
+            }
+
+            let swap = stateU; stateU = nextU; nextU = swap;
+            swap = stateV; stateV = nextV; nextV = swap;
+          }
+        }
+
+        function brush(x, y, radius, erase) {
+          const cx = x * SIM_WIDTH;
+          const cy = y * SIM_HEIGHT;
+          const rx = radius * SIM_WIDTH;
+          const ry = radius * SIM_HEIGHT;
+          const left = Math.floor(cx - rx);
+          const right = Math.ceil(cx + rx);
+          const top = Math.floor(cy - ry);
+          const bottom = Math.ceil(cy + ry);
+
+          for (let py = top; py <= bottom; py += 1) {
+            const wrapY = ((py % SIM_HEIGHT) + SIM_HEIGHT) % SIM_HEIGHT;
+            for (let px = left; px <= right; px += 1) {
+              const wrapX = ((px % SIM_WIDTH) + SIM_WIDTH) % SIM_WIDTH;
+              const dx = (wrapX - cx) / (rx || 1);
+              const dy = (wrapY - cy) / (ry || 1);
+              const distance = Math.sqrt(dx * dx + dy * dy);
+              if (distance > 1) continue;
+              const index = wrapY * SIM_WIDTH + wrapX;
+              if (erase) {
+                stateV[index] = 0;
+                stateU[index] = 1;
+              } else {
+                const strength = 0.35 + 0.65 * (1 - distance);
+                const v = Math.min(1, Math.max(stateV[index], strength));
+                stateV[index] = v;
+                stateU[index] = 1 - v;
+              }
+            }
+          }
+        }
+
+        function coverage() {
+          let hits = 0;
+          for (let index = 0; index < SIM_SIZE; index += 1) {
+            if (stateV[index] > 0.2) hits += 1;
+          }
+          return hits / SIM_SIZE;
+        }
+
+        // ═══ 渲染 ═══════════════════════════════════════════════════════
+        const canvas = document.getElementById('stage');
+        const context = canvas.getContext('2d', { alpha: false });
+        let image = null;
+        let grain = null;
+        let viewWidth = 0;
+        let viewHeight = 0;
+
+        /** 纸纹按模拟分辨率算一次，之后复用。 */
+        function buildGrain() {
+          grain = new Int8Array(SIM_SIZE * 3);
+          let seed = 0x9e3779b9;
+          const random = () => {
+            seed = (seed * 1664525 + 1013904223) >>> 0;
+            return seed / 4294967296;
+          };
+          for (let index = 0; index < grain.length; index += 1) {
+            grain[index] = Math.round((random() - 0.5) * 22);
+          }
+        }
+
+        function resize() {
+          const dpr = Math.min(window.devicePixelRatio || 1, 2);
+          const width = Math.max(1, Math.round(canvas.clientWidth * dpr));
+          const height = Math.max(1, Math.round(canvas.clientHeight * dpr));
+          if (width === viewWidth && height === viewHeight) return;
+          viewWidth = width;
+          viewHeight = height;
+          canvas.width = width;
+          canvas.height = height;
+          context.imageSmoothingEnabled = true;
+        }
+
+        // 模拟场先画到一张固定尺寸的离屏画布，再整体放大到屏幕。
+        // 这张离屏画布必须复用：每帧新建一个会让 GC 每秒丢掉几十兆。
+        const buffer = document.createElement('canvas');
+        buffer.width = SIM_WIDTH;
+        buffer.height = SIM_HEIGHT;
+        const bufferContext = buffer.getContext('2d');
+
+        function draw() {
+          const pixels = image.data;
+          for (let index = 0; index < SIM_SIZE; index += 1) {
+            const value = stateV[index];
+            const offset = index * 4;
+            // 色阶查找表按 0–255 建索引，V 是 0–1 的浮点。
+            const v = value <= 0 ? 0 : value >= 1 ? 255 : (value * 255 + 0.5) | 0;
+            // 廉价墨晕：与左邻居的差分当作边缘强度。
+            const left = index % SIM_WIDTH === 0 ? SIM_WIDTH - 1 : index - 1;
+            const gradient = stateV[index] - stateV[left];
+            const edge = gradient > 0 ? gradient : -gradient;
+            const shade = edge > 0.1 ? 0.72 : 1;
+
+            const grainOffset = index * 3;
+            pixels[offset] = LUT_R[v] * shade + grain[grainOffset];
+            pixels[offset + 1] = LUT_G[v] * shade + grain[grainOffset + 1];
+            pixels[offset + 2] = LUT_B[v] * shade + grain[grainOffset + 2];
+            pixels[offset + 3] = 255;
+          }
+
+          // 模拟场按画布比例拉伸：反应扩散的图案是有机的，轻微拉伸肉眼不可察，
+          // 换来的是窗口缩放与屏幕旋转都不必重建状态。
+          bufferContext.putImageData(image, 0, 0);
+          context.drawImage(buffer, 0, 0, viewWidth, viewHeight);
+        }
+
+        // ═══ 叙事 ═══════════════════════════════════════════════════════
+        let phase = 'seeding';
+        let phaseTime = 0;
+        let elapsed = 0;
+        let saturationTime = 0;
+        let currentCoverage = 0;
+        let sown = false;
+        let flushRadius = 0;
+        let totalSeeds = 0;
+        let totalFlushes = 0;
+
+        let randomSeed = 20260917;
+        const random = () => {
+          randomSeed = (randomSeed * 1664525 + 1013904223) >>> 0;
+          return randomSeed / 4294967296;
+        };
+
+        const phaseLabel = document.getElementById('phase');
+        const morphLabel = document.getElementById('morph');
+        const bar = document.getElementById('bar');
+
+        function stepDirector(delta) {
+          phaseTime += delta;
+
+          if (currentCoverage > SATURATION_THRESHOLD) {
+            saturationTime += delta;
+          } else {
+            saturationTime = 0;
+          }
+
+          if (phase === 'seeding') {
+            if (!sown) {
+              const count = 3 + Math.floor(random() * 6);
+              for (let index = 0; index < count; index += 1) {
+                brush(0.16 + random() * 0.68, 0.16 + random() * 0.68, 0.018 + random() * 0.022, false);
+              }
+              totalSeeds += count;
+              sown = true;
+            }
+            if (phaseTime >= SEED_DURATION) {
+              phase = 'growing';
+              phaseTime = 0;
+              elapsed = 0;
+              sown = false;
+            }
+          } else if (phase === 'growing') {
+            elapsed += delta;
+            if (saturationTime > SATURATION_HOLD || elapsed > CYCLE) {
+              phase = 'flushing';
+              phaseTime = 0;
+            }
+          } else if (phaseTime >= FLUSH_DURATION) {
+            phase = 'seeding';
+            phaseTime = 0;
+            elapsed = 0;
+            saturationTime = 0;
+            flushRadius = 0;
+            totalFlushes += 1;
+          }
+
+          const position = pathAt(elapsed);
+          flushRadius = phase === 'flushing' ? 0.1 + (phaseTime / FLUSH_DURATION) * 1.7 : 0;
+          return position;
+        }
+
+        // ═══ 主循环 ═════════════════════════════════════════════════════
+        const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        let paused = false;
+        let previous = performance.now();
+        let lastFrame = 0;
+        let running = true;
+
+        function frame(now) {
+          if (!running) return;
+          const delta = Math.min(0.1, (now - previous) / 1000);
+          previous = now;
+
+          resize();
+
+          if (!paused && !document.hidden) {
+            const position = stepDirector(delta);
+            const steps = reduceMotion ? 2 : STEPS_PER_FRAME;
+            simulate(position.feed, position.kill, steps, flushRadius);
+
+            currentCoverage = coverage();
+            phaseLabel.textContent = { seeding: '播种', growing: '蔓延', flushing: '重生' }[phase];
+            morphLabel.textContent = MORPHS[position.morph].name;
+            bar.style.transform = 'scaleX(' + position.progress.toFixed(3) + ')';
+          }
+
+          draw();
+
+          if (now - lastFrame > 400) lastFrame = now;
+          requestAnimationFrame(frame);
+        }
+
+        // ═══ 交互 ═══════════════════════════════════════════════════════
+        const hint = document.getElementById('hint');
+        let drawing = false;
+        let erasing = false;
+        let holdTimer = 0;
+
+        function toField(event) {
+          const rect = canvas.getBoundingClientRect();
+          return {
+            x: (event.clientX - rect.left) / Math.max(1, rect.width),
+            y: 1 - (event.clientY - rect.top) / Math.max(1, rect.height),
+          };
+        }
+
+        canvas.addEventListener('pointerdown', (event) => {
+          canvas.setPointerCapture(event.pointerId);
+          hint.classList.add('hint--hidden');
+          drawing = true;
+          erasing = event.button === 2 || event.shiftKey;
+          const point = toField(event);
+          brush(point.x, point.y, erasing ? 0.035 : 0.02, erasing);
+          if (!erasing) {
+            clearTimeout(holdTimer);
+            holdTimer = setTimeout(() => {
+              if (drawing) erasing = true;
+            }, 500);
+          }
+        });
+
+        canvas.addEventListener('pointermove', (event) => {
+          if (!drawing) return;
+          const point = toField(event);
+          brush(point.x, point.y, erasing ? 0.04 : 0.018, erasing);
+        });
+
+        const endDraw = () => {
+          drawing = false;
+          erasing = false;
+          clearTimeout(holdTimer);
+        };
+        canvas.addEventListener('pointerup', endDraw);
+        canvas.addEventListener('pointercancel', endDraw);
+        canvas.addEventListener('contextmenu', (event) => event.preventDefault());
+
+        window.addEventListener('keydown', (event) => {
+          if (event.code !== 'Space') return;
+          event.preventDefault();
+          paused = !paused;
+        });
+
+        document.addEventListener('visibilitychange', () => {
+          previous = performance.now();
+        });
+
+        // ═══ 调试接口 ══════════════════════════════════════════════════
+        // 仅给验收脚本用（patina-showcase/scripts/visual-audit.mjs 会同时
+        // 测两个版本）。页面自己的逻辑不读它。
+
+        function morphStart(id) {
+          let cursor = 0;
+          for (const segment of SEGMENTS) {
+            if (segment.from.owner === id) return cursor;
+            cursor += segment.hold + segment.travel;
+          }
+          return 0;
+        }
+
+        window.__PATINA__ = {
+          snapshot: () => {
+            const position = pathAt(elapsed);
+            return {
+              phase,
+              morph: position.morph,
+              coverage: currentCoverage,
+              progress: position.progress,
+              simulationSize: SIM_WIDTH,
+              highPrecision: true,
+              seeds: totalSeeds,
+              flushes: totalFlushes,
+            };
+          },
+          seek: (id) => {
+            elapsed = morphStart(id);
+            phase = 'growing';
+            phaseTime = 0;
+            sown = false;
+          },
+          sow: (count) => {
+            for (let index = 0; index < count; index += 1) {
+              brush(Math.random(), Math.random(), 0.02, false);
+            }
+            currentCoverage = coverage();
+          },
+          // 沿路径连续推进到某个形态的停留中段。
+          // 参数必须连续变化：瞬切参数会让 V 场崩解（详见 docs/specs/patina.md）。
+          //
+          // 步率刻意与工程版保持一致（20 次迭代 × 48 步 = 960 步/秒）。
+          // 这里不能像早先那样把时间步拉大来「跑得快一点」：图案长出来
+          // 需要实打实的步数（约一万步），步数不够就只是种子还没展开的状态。
+          // 代价是 CPU 上跑完整一圈要约两分钟，所以验收只走第一个形态。
+          advanceToMorph: (id) => {
+            const target = morphStart(id) + ROAM_DWELL / 2;
+            let guard = 0;
+            while (elapsed < target && guard < 40000) {
+              const position = stepDirector(0.05);
+              simulate(position.feed, position.kill, 48, flushRadius);
+              guard += 1;
+            }
+            currentCoverage = coverage();
+            return elapsed;
+          },
+          restart: () => {
+            stateU.fill(1);
+            stateV.fill(0);
+            phase = 'seeding';
+            phaseTime = 0;
+            elapsed = 0;
+            saturationTime = 0;
+            sown = false;
+            currentCoverage = 0;
+          },
+        };
+
+        // ═══ 启动 ═══════════════════════════════════════════════════════
+        const zh = document.getElementById('poem-zh');
+        const en = document.getElementById('poem-en');
+        const poem = document.getElementById('poem');
+        let poemIndex = 0;
+
+        function showPoem() {
+          const entry = POEMS[poemIndex];
+          zh.textContent = entry.zh;
+          en.textContent = entry.en;
+          poem.style.animation = 'none';
+          void poem.offsetWidth;
+          poem.style.animation = '';
+        }
+
+        showPoem();
+        setInterval(() => {
+          poemIndex = (poemIndex + 1) % POEMS.length;
+          showPoem();
+        }, 24000);
+
+        buildGrain();
+        image = context.createImageData(SIM_WIDTH, SIM_HEIGHT);
+        resize();
+        requestAnimationFrame(frame);
+
+        window.addEventListener('resize', () => {
+          previous = performance.now();
+        });
+      })();
+    </script>
+  </body>
+</html>
