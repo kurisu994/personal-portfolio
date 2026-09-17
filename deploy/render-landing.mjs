@@ -198,6 +198,19 @@ const document = `<!doctype html>
         font-size: 0.68rem;
         letter-spacing: 0.14em;
       }
+
+      footer a {
+        color: inherit;
+        text-decoration: underline;
+        text-underline-offset: 0.2em;
+      }
+
+      footer a:hover { color: var(--accent); }
+
+      footer a:focus-visible {
+        outline: 1px solid var(--accent);
+        outline-offset: 6px;
+      }
     </style>
   </head>
   <body>
@@ -214,7 +227,7 @@ const document = `<!doctype html>
 ${cards}
     </ul>
 
-    <footer>共 ${works.length} 件作品</footer>
+    <footer>共 ${works.length} 件作品 · 源代码以 <a href="./LICENSE">MIT 许可</a> 发布，画面、配乐与诗歌文本保留所有权利</footer>
   </body>
 </html>
 `;

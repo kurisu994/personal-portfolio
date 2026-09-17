@@ -58,4 +58,7 @@ COPY migration/index.html /usr/share/nginx/html/migration/index.html
 # 作品 · 工程版：使用构建产物。
 COPY --from=site-entry /site/migration-showcase/ /usr/share/nginx/html/migration-showcase/
 
+# 仓库自己的 MIT 许可证：站点分发的是 MIT 代码，声明必须随产物一同交付。
+COPY LICENSE /usr/share/nginx/html/LICENSE
+
 EXPOSE 80

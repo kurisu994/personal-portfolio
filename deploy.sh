@@ -181,6 +181,8 @@ cmd_bundle() {
   node "$ROOT_DIR/deploy/render-landing.mjs" > "$site_dir/index.html" || die '入口页生成失败'
   cp "$ROOT_DIR/migration/index.html" "$site_dir/migration/index.html"
   cp -R "$ROOT_DIR/migration-showcase/dist/." "$site_dir/migration-showcase/"
+  # 站点分发的是 MIT 代码，许可证声明必须随产物一同交付。
+  cp "$ROOT_DIR/LICENSE" "$site_dir/LICENSE"
 
   info '3/5 应用 SITE_BASE_URL ...'
   node "$ROOT_DIR/deploy/tune-html.mjs" "$site_dir/migration-showcase" "$SITE_BASE_URL" || die 'HTML 微调失败'
