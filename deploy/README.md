@@ -130,7 +130,7 @@ IMAGE_TAG=personal-portfolio:release ./deploy.sh up --no-build
 
 完成后执行 `./deploy.sh up && ./deploy.sh check`：`check` 会按目录自动发现作品并逐个请求，忘了改 Dockerfile 会直接以 404 暴露出来。
 
-注意：`deploy.sh` 把「除 `deploy/` 外的所有根目录子目录」都视为作品，而 `works.json` 只负责入口页展示。**Dockerfile 才是「哪些作品真的会被发布」的唯一依据。**
+注意：`deploy.sh` 把「除 `deploy/` 与 `docs/` 外的所有根目录子目录」都视为作品，而 `works.json` 只负责入口页展示。**Dockerfile 才是「哪些作品真的会被发布」的唯一依据。**
 
 ## 设计取舍
 

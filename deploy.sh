@@ -25,7 +25,7 @@
 #                             设置后会把工程版的 og:image 改写成绝对地址，
 #                             使社交平台的分享卡片能取到图。
 #
-# 约定：仓库根目录下除 deploy/ 之外的每个子目录都被视为一件作品，
+# 约定：仓库根目录下除 deploy/ 与 docs/ 之外的每个子目录都被视为一件作品，
 #       并以同名子路径发布（migration/ 发布在 /migration/）。
 
 set -euo pipefail
@@ -35,8 +35,8 @@ readonly ROOT_DIR
 readonly COMPOSE_FILE="$ROOT_DIR/deploy/compose.yaml"
 readonly PROJECT_NAME="personal-portfolio"
 
-# 基础设施目录，不是作品。
-readonly INFRA_DIRS=$'deploy\n'
+# 非作品目录：deploy/ 是部署基础设施，docs/ 是仓库文档。
+readonly INFRA_DIRS=$'deploy\ndocs\n'
 
 export PORT="${PORT:-8080}"
 export BIND_HOST="${BIND_HOST:-127.0.0.1}"
