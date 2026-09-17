@@ -2,6 +2,7 @@
   "name": "migration-showcase",
   "private": true,
   "version": "2.0.0",
+  "license": "MIT",
   "type": "module",
   "packageManager": "pnpm@12.4.2",
   "engines": {

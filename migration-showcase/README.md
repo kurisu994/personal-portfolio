@@ -91,3 +91,7 @@ pnpm verify:visual
 SHA-256  ../migration/index.html
 4f75030244a5607436b8441d554c6410389b21eee006b9b91175e9766be68cbc
 ```
+
+## 许可证
+
+源代码采用 [MIT 许可证](../LICENSE)。画面、配乐与诗歌文本是创作素材，不在 MIT 授权范围内，权利保留。第三方依赖各自的许可证见上文与 `public/licenses/`。

@@ -63,7 +63,9 @@ SITE_BASE_URL=https://example.com/ ./deploy.sh up
 
 ## 许可证
 
-各作品及其素材的授权，以对应目录内的说明为准。
+**源代码采用 MIT 许可证**（见 [`LICENSE`](./LICENSE)）：可以自由使用、修改、分发，包括商业用途。**创作素材不在其内**：画面、配乐和诗歌文本保留所有权利，转载或商用请先取得许可。
+
+各作品及其素材的具体授权，以对应目录内 `README.md` 的说明为准。
 
 - **第三方依赖**：`migration-showcase/` 运行时依赖 three、React、lucide 以及 Manrope / Noto Serif SC 两款字体，其许可证原文（MIT / ISC / OFL）保存在 [`migration-showcase/public/licenses/`](./migration-showcase/public/licenses/)。该目录属于构建输入，Rsbuild 会将它原样复制到 `dist/licenses/`，许可证因此随部署产物一同分发。**不要把这份副本挪出 `public/`**，否则线上站点会失去授权声明。
 - **简易版**：`migration/` 不依赖任何第三方库、字体或 CDN，配乐与图标都内嵌在单文件里，无需附带许可证副本。
