@@ -11,3 +11,6 @@ Thumbs.db
 
 # 工具输出（如 Playwright MCP 的截图与控制台日志）
 .playwright-mcp/
+
+# 本地构建中转目录：站点产物与镜像 tar，不进版本库
+/build/

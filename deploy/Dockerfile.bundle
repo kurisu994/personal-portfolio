@@ -1,0 +1,20 @@
+# 纯打包镜像：假定静态站点已在本地构建完成（位于 build/site/），这里只做复制。
+#
+# 为什么与 Dockerfile 分开：本机是 arm64、服务器是 amd64。完整构建要执行
+# node 与 rsbuild，跨架构就得跑 QEMU 模拟，非常慢——等于把耗时从服务器搬到本机。
+# 而构建产物（HTML / CSS / JS / 字体）本身与架构无关，所以策略是：
+#   本机原生构建站点 → 用这个只含 COPY 的 Dockerfile 交叉打包。
+# 没有 RUN 指令就不会触发指令集模拟，打包几乎是瞬时的。
+#
+# 由 deploy.sh bundle 调用，构建上下文是仓库根目录：
+#   docker build --platform linux/amd64 -f deploy/Dockerfile.bundle -t <tag> .
+
+FROM nginx:alpine
+
+COPY deploy/nginx.conf            /etc/nginx/conf.d/default.conf
+COPY deploy/security-headers.conf /etc/nginx/snippets/security-headers.conf
+
+# 已构建好的完整站点，由 deploy.sh bundle 组装到 build/site/。
+COPY build/site/                  /usr/share/nginx/html/
+
+EXPOSE 80

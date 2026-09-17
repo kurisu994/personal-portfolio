@@ -67,6 +67,32 @@ SITE_BASE_URL=https://example.com/ ./deploy.sh up
 
 只需要目标机器装有 Docker（含 compose 插件）。宿主机**不需要** Node.js、pnpm 或 nginx——构建全部发生在镜像内。
 
+### 改用「本地构建 + 传输成品」
+
+目标机器性能有限时，不要在它上面构建，改成本地打包后传输：
+
+```sh
+# 本机：构建站点、交叉打包 amd64 镜像、导出 tar
+SITE_BASE_URL=https://example.com/ ./deploy.sh bundle
+
+# 传输（37 MB 左右）
+scp build/personal-portfolio-amd64.tar <服务器>:/opt/personal-portfolio/
+
+# 服务器：加载镜像并启动，完全不构建
+cd /opt/personal-portfolio
+docker load -i personal-portfolio-amd64.tar
+IMAGE_TAG=personal-portfolio:release ./deploy.sh up --no-build
+```
+
+为什么能跨架构：本机通常与服务器架构不同（如 Apple Silicon ↔ x86\_64）。完整
+`Dockerfile` 要执行 node 与 rsbuild，跨架构就得跑 QEMU 模拟，等于把耗时从服务器
+搬到本机；而构建产物（HTML / CSS / JS / 字体）本身与架构无关。所以 `bundle` 采用
+本机原生构建 + `Dockerfile.bundle` 交叉打包——后者**只有 `COPY`、没有 `RUN`**，
+不触发指令集模拟，打包几乎瞬时。
+
+服务器侧只需要仓库里的 `deploy/` 目录（提供 `deploy.sh` 与 `compose.yaml`），
+源码与工具链都不需要。更新时重新跑一次 `bundle` → `scp` → `docker load` 即可。
+
 ### HTTPS
 
 容器只提供 HTTP，TLS 由外层终止，不要放进容器：证书续期一旦被塞进业务镜像，运维就被绑死了。

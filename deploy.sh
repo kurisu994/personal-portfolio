@@ -4,6 +4,7 @@
 #
 #   ./deploy.sh up            构建并启动（默认命令）
 #   ./deploy.sh build         只构建镜像
+#   ./deploy.sh bundle        本地构建站点并打包成 amd64 镜像 tar（供传输到服务器）
 #   ./deploy.sh check         请求入口页与每件作品，验证是否真的能打开
 #   ./deploy.sh status        查看容器与健康状态
 #   ./deploy.sh logs          跟踪容器日志
@@ -13,11 +14,13 @@
 #
 # 选项：
 #   --no-cache                构建时忽略缓存（写在 up / build 之后）
+#   --no-build                不构建，直接使用已存在的镜像（服务器端配合 bundle 使用）
 #
 # 环境变量：
 #   PORT                      宿主机端口，默认 8080
 #   BIND_HOST                 绑定地址，默认 127.0.0.1（仅本机可访问）
 #                             反向代理场景保持默认；需局域网直连时改为 0.0.0.0
+#   IMAGE_TAG                 使用的镜像名，默认 personal-portfolio:local
 #   SITE_BASE_URL             站点根地址，例如 https://example.com/
 #                             设置后会把工程版的 og:image 改写成绝对地址，
 #                             使社交平台的分享卡片能取到图。
@@ -37,7 +40,15 @@ readonly INFRA_DIRS=$'deploy\n'
 
 export PORT="${PORT:-8080}"
 export BIND_HOST="${BIND_HOST:-127.0.0.1}"
+export IMAGE_TAG="${IMAGE_TAG:-personal-portfolio:local}"
 export SITE_BASE_URL="${SITE_BASE_URL:-}"
+
+# bundle 产出的镜像标签与 tar 路径。
+readonly BUNDLE_IMAGE="personal-portfolio:release"
+readonly BUNDLE_TAR="$ROOT_DIR/build/personal-portfolio-amd64.tar"
+
+# --no-build 由 main 解析后置为 1。
+NO_BUILD=0
 
 if [ -t 1 ]; then
   readonly C_DIM=$'\033[2m' C_INFO=$'\033[36m' C_OK=$'\033[32m' C_WARN=$'\033[33m' C_ERR=$'\033[31m' C_OFF=$'\033[0m'
@@ -131,8 +142,13 @@ cmd_up() {
   report_plan
   # 变量必须用 ${} 括起：macOS 自带的 bash 3.2 存在多字节解析缺陷，
   # $PORT 紧跟全角括号时，会把括号的首字节并入变量名，导致 unbound variable。
-  info "构建并启动容器（监听 ${BIND_HOST}:${PORT}）..."
-  compose up --detach --build "${extra[@]+"${extra[@]}"}"
+  if [ "$NO_BUILD" -eq 1 ]; then
+    info "使用已存在的镜像启动（跳过构建）：$IMAGE_TAG"
+    compose up --detach "${extra[@]+"${extra[@]}"}"
+  else
+    info "构建并启动容器（监听 ${BIND_HOST}:${PORT}）..."
+    compose up --detach --build "${extra[@]+"${extra[@]}"}"
+  fi
   if wait_ready; then
     ok "站点已启动：$(base_url)/"
     cmd_check
@@ -141,6 +157,50 @@ cmd_up() {
     warn '可执行 ./deploy.sh logs 查看日志'
     exit 1
   fi
+}
+
+cmd_bundle() {
+  local site_dir="$ROOT_DIR/build/site"
+  local revision
+
+  command -v docker >/dev/null 2>&1 || die '未找到 docker'
+  command -v node   >/dev/null 2>&1 || die '未找到 node，bundle 需要在本机构建站点'
+  command -v pnpm   >/dev/null 2>&1 || die '未找到 pnpm'
+
+  report_plan
+
+  info '1/5 构建工程版 ...'
+  if [ ! -d "$ROOT_DIR/migration-showcase/node_modules" ]; then
+    ( cd "$ROOT_DIR/migration-showcase" && pnpm install --frozen-lockfile ) || die '依赖安装失败'
+  fi
+  ( cd "$ROOT_DIR/migration-showcase" && pnpm build ) || die '工程版构建失败'
+
+  info '2/5 组装站点目录 ...'
+  rm -rf "$site_dir"
+  mkdir -p "$site_dir/migration" "$site_dir/migration-showcase"
+  node "$ROOT_DIR/deploy/render-landing.mjs" > "$site_dir/index.html" || die '入口页生成失败'
+  cp "$ROOT_DIR/migration/index.html" "$site_dir/migration/index.html"
+  cp -R "$ROOT_DIR/migration-showcase/dist/." "$site_dir/migration-showcase/"
+
+  info '3/5 应用 SITE_BASE_URL ...'
+  node "$ROOT_DIR/deploy/tune-html.mjs" "$site_dir/migration-showcase" "$SITE_BASE_URL" || die 'HTML 微调失败'
+
+  info "4/5 交叉打包 linux/amd64 镜像：$BUNDLE_IMAGE"
+  revision="$(git -C "$ROOT_DIR" rev-parse HEAD 2>/dev/null || printf 'unknown')"
+  docker build \
+    --platform linux/amd64 \
+    --file "$ROOT_DIR/deploy/Dockerfile.bundle" \
+    --tag "$BUNDLE_IMAGE" \
+    --label "org.opencontainers.image.revision=$revision" \
+    "$ROOT_DIR" || die '镜像打包失败'
+
+  info '5/5 导出镜像 tar ...'
+  mkdir -p "$ROOT_DIR/build"
+  docker save "$BUNDLE_IMAGE" --output "$BUNDLE_TAR" || die '镜像导出失败'
+
+  ok "已生成：${BUNDLE_TAR}（$(du -h "$BUNDLE_TAR" | cut -f1)）"
+  printf '%s      镜像 %s，架构 linux/amd64，修订 %s%s\n' "$C_DIM" "$BUNDLE_IMAGE" "${revision:0:12}" "$C_OFF"
+  printf '%s      服务器端：docker load -i %s && IMAGE_TAG=%s ./deploy.sh up --no-build%s\n' "$C_DIM" "$(basename -- "$BUNDLE_TAR")" "$BUNDLE_IMAGE" "$C_OFF"
 }
 
 cmd_check() {
@@ -188,14 +248,14 @@ cmd_check() {
       if [ "$effective" = "$expected" ]; then
         printf '%s      结尾斜杠重定向 %s -> %s%s\n' "$C_DIM" "$base/$route" "$expected" "$C_OFF"
       else
-        warn "结尾斜杠重定向 $base/$route 最终落在 $effective，预期 $expected"
+        warn "结尾斜杠重定向 $base/$route 最终落在 ${effective}，预期 ${expected}"
         failures=$((failures + 1))
       fi
     elif [ "$slash_code" = '404' ]; then
       warn "结尾斜杠      $base/$route 返回 404，子目录访问将失效"
       failures=$((failures + 1))
     else
-      warn "结尾斜杠      $base/$route 返回 $slash_code，预期 301"
+      warn "结尾斜杠      $base/$route 返回 ${slash_code}，预期 301"
       failures=$((failures + 1))
     fi
   done <<< "$works"
@@ -262,9 +322,26 @@ main() {
   local command="${1:-up}"
   shift || true
 
+  # 先摘出 --no-build（它不是 compose 的参数），其余原样透传给子命令。
+  # bash 3.2 下 `set -- "${arr[@]}"` 在数组为空时会报 unbound，所以分情况处理。
+  local passthrough=()
+  local arg
+  for arg in "$@"; do
+    case "$arg" in
+      --no-build) NO_BUILD=1 ;;
+      *) passthrough+=("$arg") ;;
+    esac
+  done
+  if [ "${#passthrough[@]}" -gt 0 ]; then
+    set -- "${passthrough[@]}"
+  else
+    set --
+  fi
+
   case "$command" in
     up)      cmd_up "$@" ;;
     build)   cmd_build "$@" ;;
+    bundle)  cmd_bundle ;;
     check)   cmd_check ;;
     status)  cmd_status ;;
     logs)    cmd_logs ;;
