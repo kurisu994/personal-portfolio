@@ -1,0 +1,39 @@
+{
+  "name": "migration-showcase",
+  "private": true,
+  "version": "2.0.0",
+  "type": "module",
+  "packageManager": "pnpm@12.4.2",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "rsbuild dev --host 127.0.0.1",
+    "build": "rsbuild build",
+    "preview": "rsbuild preview --host 127.0.0.1",
+    "typecheck": "tsc --noEmit",
+    "verify:model": "node scripts/model-audit.mjs",
+    "verify:river": "node scripts/river-audit.mjs",
+    "verify:visual": "node scripts/visual-audit.mjs",
+    "verify:simulation": "tsx scripts/simulation-audit.ts"
+  },
+  "dependencies": {
+    "@fontsource-variable/manrope": "^5.3.0",
+    "@fontsource-variable/noto-serif-sc": "^5.3.0",
+    "lucide-react": "^1.46.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "three": "^0.186.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "@rsbuild/core": "^2.2.6",
+    "@rsbuild/plugin-react": "^2.1.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@types/three": "^0.186.0",
+    "pngjs": "^7.0.0",
+    "tsx": "^4.23.13",
+    "typescript": "^7.0.2"
+  }
+}
