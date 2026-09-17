@@ -27,6 +27,22 @@ RUN corepack enable && pnpm install --frozen-lockfile
 COPY migration-showcase/ ./
 RUN pnpm build
 
+# ══ 阶段 1b：苔痕工程版构建 ═════════════════════════════════════════
+FROM node:24-alpine AS build-patina-showcase
+
+ENV CI=1
+WORKDIR /work
+
+COPY patina-showcase/package.json \
+     patina-showcase/pnpm-lock.yaml \
+     patina-showcase/pnpm-workspace.yaml \
+     ./
+
+RUN corepack enable && pnpm install --frozen-lockfile
+
+COPY patina-showcase/ ./
+RUN pnpm build
+
 # ══ 阶段 2：入口页生成与 HTML 微调 ════════════════════════════════════
 FROM node:24-alpine AS site-entry
 
@@ -36,12 +52,14 @@ COPY deploy/works.json deploy/render-landing.mjs ./
 RUN node render-landing.mjs > /site/index.html
 
 COPY --from=build-migration-showcase /work/dist /site/migration-showcase
+COPY --from=build-patina-showcase /work/dist /site/patina-showcase
 
 # 可选：设置 SITE_BASE_URL 后，把相对 og:image 改写为绝对地址并补上
 # canonical / og:url。留空则完全跳过，不触碰构建产物。
 ARG SITE_BASE_URL=""
 COPY deploy/tune-html.mjs ./
 RUN node tune-html.mjs /site/migration-showcase "$SITE_BASE_URL"
+RUN node tune-html.mjs /site/patina-showcase "$SITE_BASE_URL"
 
 # ══ 阶段 3：运行镜像 ═══════════════════════════════════════════════════
 FROM nginx:alpine AS runtime
@@ -54,9 +72,11 @@ COPY --from=site-entry /site/index.html /usr/share/nginx/html/index.html
 
 # 作品 · 简易版：零第三方依赖，文件本身就是应用，直接复制，无需构建。
 COPY migration/index.html /usr/share/nginx/html/migration/index.html
+COPY patina/index.html   /usr/share/nginx/html/patina/index.html
 
 # 作品 · 工程版：使用构建产物。
 COPY --from=site-entry /site/migration-showcase/ /usr/share/nginx/html/migration-showcase/
+COPY --from=site-entry /site/patina-showcase/    /usr/share/nginx/html/patina-showcase/
 
 # 仓库自己的 MIT 许可证：站点分发的是 MIT 代码，声明必须随产物一同交付。
 COPY LICENSE /usr/share/nginx/html/LICENSE
