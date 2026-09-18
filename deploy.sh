@@ -35,8 +35,9 @@ readonly ROOT_DIR
 readonly COMPOSE_FILE="$ROOT_DIR/deploy/compose.yaml"
 readonly PROJECT_NAME="personal-portfolio"
 
-# 非作品目录：deploy/ 是部署基础设施，docs/ 是仓库文档。
-readonly INFRA_DIRS=$'deploy\ndocs\n'
+# 非作品目录：deploy/ 是部署基础设施，docs/ 是仓库文档，
+# build/ 是 bundle 的本地中转目录（站点产物与镜像 tar），不属于任何作品。
+readonly INFRA_DIRS=$'deploy\ndocs\nbuild\n'
 
 export PORT="${PORT:-8080}"
 export BIND_HOST="${BIND_HOST:-127.0.0.1}"
@@ -162,6 +163,11 @@ cmd_up() {
 cmd_bundle() {
   local site_dir="$ROOT_DIR/build/site"
   local revision
+  # 简易版直接复制源码目录里的单文件；工程版取各自 dist/ 构建产物。
+  # Dockerfile 侧同样是枚举式的，两处都要随新增作品同步。
+  local simple_works=(migration patina arbor)
+  local showcase_works=(migration-showcase patina-showcase arbor-showcase)
+  local work
 
   command -v docker >/dev/null 2>&1 || die '未找到 docker'
   command -v node   >/dev/null 2>&1 || die '未找到 node，bundle 需要在本机构建站点'
@@ -170,22 +176,32 @@ cmd_bundle() {
   report_plan
 
   info '1/5 构建工程版 ...'
-  if [ ! -d "$ROOT_DIR/migration-showcase/node_modules" ]; then
-    ( cd "$ROOT_DIR/migration-showcase" && pnpm install --frozen-lockfile ) || die '依赖安装失败'
-  fi
-  ( cd "$ROOT_DIR/migration-showcase" && pnpm build ) || die '工程版构建失败'
+  for work in "${showcase_works[@]}"; do
+    if [ ! -d "$ROOT_DIR/$work/node_modules" ]; then
+      ( cd "$ROOT_DIR/$work" && pnpm install --frozen-lockfile ) || die "$work 依赖安装失败"
+    fi
+    ( cd "$ROOT_DIR/$work" && pnpm build ) || die "$work 构建失败"
+  done
 
   info '2/5 组装站点目录 ...'
   rm -rf "$site_dir"
-  mkdir -p "$site_dir/migration" "$site_dir/migration-showcase"
+  mkdir -p "$site_dir"
   node "$ROOT_DIR/deploy/render-landing.mjs" > "$site_dir/index.html" || die '入口页生成失败'
-  cp "$ROOT_DIR/migration/index.html" "$site_dir/migration/index.html"
-  cp -R "$ROOT_DIR/migration-showcase/dist/." "$site_dir/migration-showcase/"
+  for work in "${simple_works[@]}"; do
+    mkdir -p "$site_dir/$work"
+    cp "$ROOT_DIR/$work/index.html" "$site_dir/$work/index.html"
+  done
+  for work in "${showcase_works[@]}"; do
+    mkdir -p "$site_dir/$work"
+    cp -R "$ROOT_DIR/$work/dist/." "$site_dir/$work/"
+  done
   # 站点分发的是 MIT 代码，许可证声明必须随产物一同交付。
   cp "$ROOT_DIR/LICENSE" "$site_dir/LICENSE"
 
   info '3/5 应用 SITE_BASE_URL ...'
-  node "$ROOT_DIR/deploy/tune-html.mjs" "$site_dir/migration-showcase" "$SITE_BASE_URL" || die 'HTML 微调失败'
+  for work in "${showcase_works[@]}"; do
+    node "$ROOT_DIR/deploy/tune-html.mjs" "$site_dir/$work" "$SITE_BASE_URL" || die "$work HTML 微调失败"
+  done
 
   info "4/5 交叉打包 linux/amd64 镜像：$BUNDLE_IMAGE"
   revision="$(git -C "$ROOT_DIR" rev-parse HEAD 2>/dev/null || printf 'unknown')"

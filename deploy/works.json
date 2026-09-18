@@ -1,7 +1,7 @@
 {
   "title": "拾羽集",
   "tagline": "把远方折成翅膀，把此刻交还给风。",
-  "description": "同一件作品两种实现：一边刻意不用任何第三方依赖，一边建立在现代前端工具链之上。",
+  "description": "每件作品两种实现：一边刻意不用任何第三方依赖，一边建立在现代前端工具链之上。",
   "works": [
     {
       "route": "migration",
@@ -30,6 +30,20 @@
       "variant": "工程版",
       "summary": "基于 React 与 WebGL2 的工程化实现。双 32 位浮点纹理 ping-pong、纸墨色阶与纸纹后处理，附带离线数值验收与真实浏览器视觉验收。",
       "stack": "React · TypeScript · WebGL2 · Rsbuild"
+    },
+    {
+      "route": "arbor",
+      "name": "一木 · ARBOR",
+      "variant": "简易版",
+      "summary": "零第三方依赖的单文件实现。落一粒种子，随滚动看它生根、展叶与结果；全部画面由 Canvas 2D 手写，运行时不发起任何网络请求。",
+      "stack": "原生 JavaScript · Canvas 2D · WebAudio"
+    },
+    {
+      "route": "arbor-showcase",
+      "name": "一木 · ARBOR",
+      "variant": "工程版",
+      "summary": "基于 React 与 Three.js 的工程化实现。534 条根枝、2566 片实例叶与五只纸鸟，水彩颜料着色器配可逆的滚动生长，附带自动化验收脚本。",
+      "stack": "React · TypeScript · Three.js · GSAP · Rsbuild"
     }
   ]
 }

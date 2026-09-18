@@ -23,6 +23,10 @@ deploy/
 /                      入口页，列出全部作品
 /migration/            作品 · 简易版（零依赖单文件，直接复制）
 /migration-showcase/   作品 · 工程版（Rsbuild 构建产物）
+/patina/               作品 · 简易版（零依赖单文件，直接复制）
+/patina-showcase/      作品 · 工程版（Rsbuild 构建产物）
+/arbor/                作品 · 简易版（零依赖单文件，直接复制）
+/arbor-showcase/       作品 · 工程版（Rsbuild 构建产物）
 ```
 
 ## 快速开始
@@ -122,15 +126,16 @@ IMAGE_TAG=personal-portfolio:release ./deploy.sh up --no-build
 
 ## 新增一件作品
 
-仓库约定「一件作品 = 一个根目录子目录」，部署侧需要动三处：
+仓库约定「一件作品 = 一个根目录子目录」，部署侧需要动四处：
 
 1. **`deploy/Dockerfile`** —— 加一行 `COPY`（静态作品）或加一个构建阶段（需要工具链的作品）。
 2. **`deploy/works.json`** —— 加一条作品记录，供入口页展示。
-3. **`README.md`**（根目录）—— 在作品索引表里补一行。
+3. **`deploy.sh` 的 `cmd_bundle`** —— 把新目录名加进 `simple_works` / `showcase_works` 数组，否则「本地构建 + 传输成品」的发布路径会漏掉它。
+4. **`README.md`**（根目录）—— 在作品索引表里补一行。
 
 完成后执行 `./deploy.sh up && ./deploy.sh check`：`check` 会按目录自动发现作品并逐个请求，忘了改 Dockerfile 会直接以 404 暴露出来。
 
-注意：`deploy.sh` 把「除 `deploy/` 与 `docs/` 外的所有根目录子目录」都视为作品，而 `works.json` 只负责入口页展示。**Dockerfile 才是「哪些作品真的会被发布」的唯一依据。**
+注意：`deploy.sh` 把「除 `deploy/`、`docs/` 与 `build/` 外的所有根目录子目录」都视为作品，而 `works.json` 只负责入口页展示。**Dockerfile 才是「哪些作品真的会被发布」的唯一依据，但它与 `cmd_bundle` 的清单不会互相检查，两处都要手改。**
 
 ## 设计取舍
 
@@ -138,11 +143,11 @@ IMAGE_TAG=personal-portfolio:release ./deploy.sh up --no-build
 
 **依赖安装在容器内进行。** 宿主机 `node_modules`（207 MB，含 macOS 平台的 esbuild 二进制）已由 `.dockerignore` 排除。跨平台拷贝二进制必然运行失败，必须在目标平台重新安装。
 
-**子目录必须带结尾斜杠。** 工程版由 Rsbuild 以 `assetPrefix: './'` 构建，HTML 内资源全是相对路径（`./static/js/...`）。访问 `/migration-showcase`（缺斜杠）时浏览器会把 `./static/` 解析到站点根，导致整站资源 404。nginx 在 URI 命中目录且存在 `index.html` 时会自动 301 补斜杠，因此配置里**不手写 rewrite**，避免与自动重定向冲突；正确性由 `./deploy.sh check` 实际请求验证。
+**子目录必须带结尾斜杠。** 工程版由 Rsbuild 以 `assetPrefix: 'auto'` 构建，HTML 内资源全是相对路径（`static/js/...`）。访问 `/migration-showcase`（缺斜杠）时浏览器会把 `static/` 解析到站点根，导致整站资源 404。nginx 在 URI 命中目录且存在 `index.html` 时会自动 301 补斜杠，因此配置里**不手写 rewrite**，避免与自动重定向冲突；正确性由 `./deploy.sh check` 实际请求验证。
 
-**不做 SPA 回退。** 两件作品都是没有前端路由的单页应用，`try_files ... /index.html` 会把 404 伪装成 200，掩盖部署错误。宁可暴露 404。
+**不做 SPA 回退。** 三件作品都是没有前端路由的单页应用，`try_files ... /index.html` 会把 404 伪装成 200，掩盖部署错误。宁可暴露 404。
 
-**HTML 不缓存。** 简易版整个应用就是一个约 607 KiB 的 `index.html`；它被强缓存的话，发布后用户会长期停留在旧版本。带内容哈希的构建产物才做一年 `immutable`。
+**HTML 不缓存。** 简易版整个应用就是一个约 90-600 KiB 的 `index.html`；它被强缓存的话，发布后用户会长期停留在旧版本。带内容哈希的构建产物才做一年 `immutable`。
 
 **安全响应头抽成 include。** nginx 的 `add_header` 是整段覆盖而非逐条合并：只要某个 `location` 里出现一条 `add_header`，服务层级的全部 `add_header` 都会对该 location 失效。为免安全头在带缓存策略的 location 里静默消失，用 `security-headers.conf` 显式 include 到每一处。
 
