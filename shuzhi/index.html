@@ -38,7 +38,9 @@
 
       /* 页面高度即时间轴：10000px，五段各 2000px */
       body { height: 10000px; overflow-x: hidden; overscroll-behavior-y: none; }
-      body.locked { overflow: hidden; height: 100vh; }
+      body.locked { overflow: hidden; height: 100vh; background: #302319; }
+      body.locked .hud { opacity: 0; visibility: hidden; }
+      button:focus-visible { outline: 2px solid currentColor; outline-offset: 5px; }
 
       #world {
         position: fixed;
@@ -57,6 +59,7 @@
         z-index: 3;
         padding: clamp(16px, 2.4vw, 38px);
         pointer-events: none;
+        transition: opacity 0.8s ease;
       }
 
       .hud > * { pointer-events: auto; }
@@ -93,21 +96,20 @@
       .tools { display: flex; gap: 10px; }
 
       .tool {
-        width: 38px;
-        height: 38px;
+        width: 44px;
+        height: 44px;
         display: grid;
         place-items: center;
         padding: 0;
         border: 1px solid var(--line);
         border-radius: 999px;
-        background: rgb(255 255 255 / 34%);
+        background: transparent;
         color: var(--ink);
         cursor: pointer;
         transition: background 0.4s ease, border-color 0.4s ease, transform 0.3s ease;
-        backdrop-filter: blur(2px);
       }
 
-      .tool:hover { background: rgb(255 255 255 / 70%); transform: translateY(-1px); }
+      .tool:hover { background: rgb(206 172 116 / 16%); transform: translateY(-1px); }
       .tool svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
       .tool .strike { opacity: 0; transition: opacity 0.3s ease; }
       .tool[aria-pressed="false"] .strike { opacity: 1; }
@@ -115,9 +117,10 @@
       /* ---------- 诗句 ---------- */
       .poetry {
         position: absolute;
-        left: clamp(16px, 2.4vw, 38px);
-        bottom: clamp(84px, 13vh, 150px);
-        width: min(30ch, 62vw);
+        left: clamp(24px, 4vw, 64px);
+        bottom: clamp(96px, 17vh, 180px);
+        width: clamp(240px, 24vw, 320px);
+        color: var(--poem-ink, var(--ink));
       }
 
       .poetry-rule {
@@ -142,6 +145,8 @@
         letter-spacing: 0.16em;
       }
 
+      .poetry-zh .verse { display: block; white-space: nowrap; }
+
       .poetry-zh .char {
         display: inline-block;
         opacity: 0;
@@ -156,7 +161,7 @@
       .poetry-en {
         margin: 0.9em 0 0;
         max-width: 30ch;
-        color: var(--muted);
+        color: inherit;
         font-size: clamp(10px, 1vw, 12px);
         letter-spacing: 0.06em;
         line-height: 1.9;
@@ -165,7 +170,7 @@
         transition: opacity 1.3s ease, transform 1.3s ease;
       }
 
-      .poetry.is-visible .poetry-en { opacity: 1; transform: none; }
+      .poetry.is-visible .poetry-en { opacity: 0.84; transform: none; }
 
       /* ---------- 阶段编年 ---------- */
       .chronicle {
@@ -173,6 +178,7 @@
         right: clamp(16px, 2.4vw, 38px);
         bottom: clamp(16px, 2.4vw, 38px);
         text-align: right;
+        color: var(--footer-ink, var(--ink));
       }
 
       .chronicle-stage {
@@ -185,14 +191,15 @@
         letter-spacing: 0.18em;
       }
 
-      .chronicle-stage span:first-child { color: var(--faint); font-size: 0.78em; }
+      .chronicle-stage span:first-child { opacity: 0.7; font-size: 0.78em; }
 
       .chronicle-track {
         width: min(220px, 42vw);
         height: 1px;
         margin-top: 12px;
         margin-left: auto;
-        background: var(--line);
+        background: currentColor;
+        opacity: 0.6;
       }
 
       .chronicle-bar {
@@ -238,8 +245,9 @@
         display: grid;
         place-items: center;
         padding: 24px;
-        background: radial-gradient(120% 90% at 50% 40%, rgb(247 244 235 / 62%) 0%, rgb(247 244 235 / 92%) 70%, var(--paper) 100%);
-        transition: opacity 1.5s ease;
+        color: #f6ecd9;
+        background: transparent;
+        transition: opacity 1.1s ease;
       }
 
       .intro.gone { opacity: 0; pointer-events: none; }
@@ -247,7 +255,7 @@
       .intro-inner { width: min(560px, 88vw); text-align: center; }
 
       .intro-kicker {
-        color: var(--faint);
+        color: #d0b68d;
         font-family: var(--serif);
         font-size: clamp(10px, 1.1vw, 12px);
         letter-spacing: 0.34em;
@@ -256,15 +264,15 @@
       .intro-title {
         margin: 0.55em 0 0;
         font-family: var(--serif);
-        font-size: clamp(34px, 6.4vw, 68px);
+        font-size: clamp(40px, 6.4vw, 76px);
         font-weight: 500;
         letter-spacing: 0.2em;
         text-indent: 0.2em;
       }
 
       .intro-en {
-        margin-top: 0.8em;
-        color: var(--faint);
+        margin-top: 1em;
+        color: #d0b68d;
         font-size: clamp(10px, 1.1vw, 12px);
         letter-spacing: 0.86em;
         text-indent: 0.86em;
@@ -272,7 +280,7 @@
 
       .intro-copy {
         margin: 2.2em 0 0;
-        color: var(--muted);
+        color: #e2d4be;
         font-family: var(--serif);
         font-size: clamp(12px, 1.3vw, 15px);
         line-height: 2.1;
@@ -285,10 +293,12 @@
         display: inline-flex;
         align-items: center;
         gap: 12px;
-        border: 1px solid rgb(58 54 44 / 30%);
+        min-height: 50px;
+        border: 1px solid #e1c894;
         border-radius: 999px;
-        background: rgb(255 255 255 / 42%);
-        color: var(--ink);
+        background: #d5b57e;
+        color: #2b2118;
+        box-shadow: 0 8px 28px rgb(24 16 10 / 18%);
         font-family: var(--serif);
         font-size: clamp(13px, 1.4vw, 16px);
         letter-spacing: 0.24em;
@@ -297,15 +307,30 @@
         transition: background 0.5s ease, letter-spacing 0.5s ease, border-color 0.5s ease;
       }
 
-      .intro-btn:hover { background: rgb(255 255 255 / 88%); letter-spacing: 0.32em; border-color: rgb(58 54 44 / 52%); }
+      .intro-btn:hover { background: #e4c693; letter-spacing: 0.32em; border-color: #f0d7ab; }
       .intro-btn .arrow { transition: transform 0.5s ease; }
       .intro-btn:hover .arrow { transform: translateX(4px); }
 
-      .intro-note { margin-top: 1.8em; color: var(--faint); font-size: 11px; letter-spacing: 0.3em; }
+      .intro-note { margin-top: 1.8em; color: #cbb590; font-size: 11px; letter-spacing: 0.3em; }
 
-      @media (max-width: 620px) {
-        .poetry { width: 74vw; bottom: clamp(96px, 20vh, 200px); }
+      @media (max-width: 760px), (max-aspect-ratio: 1/1) {
+        .poetry { left: 24px; width: calc(100% - 48px); bottom: 84px; }
+        .poetry-rule { width: 40px; margin-bottom: 12px; }
+        .poetry-zh { font-size: 15px; line-height: 1.9; letter-spacing: 0.1em; }
+        .poetry-en { max-width: 42ch; font-size: 11px; line-height: 1.65; }
         .scroll-hint { display: none; }
+        .intro-copy { font-size: 13px; }
+      }
+
+      @media (max-height: 520px) and (min-aspect-ratio: 1/1) {
+        .poetry { left: 24px; bottom: 64px; width: 232px; }
+        .poetry-rule { margin-bottom: 12px; }
+        .poetry-zh { font-size: 14px; line-height: 1.8; }
+        .poetry-en { font-size: 10px; line-height: 1.6; }
+        .intro-title { font-size: 38px; margin-top: 0.3em; }
+        .intro-copy { margin-top: 1em; }
+        .intro-btn { margin-top: 1.2em; }
+        .intro-note { margin-top: 1em; }
       }
 
       @media (prefers-reduced-motion: reduce) {
@@ -317,7 +342,7 @@
   <body class="locked">
     <canvas id="world" aria-label="滚动驱动的程序化大树：从种子破土、拔节、分叉到结果与飞鸟归巢"></canvas>
 
-    <div class="hud" id="hud">
+    <div class="hud" id="hud" inert>
       <header class="masthead">
         <h1 class="brand">树之物语<span class="brand-en">SHUZHI</span></h1>
         <div class="tools">
@@ -705,6 +730,10 @@
             trunkTop.x = bx; trunkTop.y = by;
           });
           const trunkIndices = segs.map((_, i) => i);
+          // 主干相邻段共用端宽，避免每一节重新鼓起成竹节。
+          trunkIndices.forEach((idx, i) => {
+            segs[idx].tipRatio = i < TRUNK.length - 1 ? TRUNK[i + 1].w / TRUNK[i].w : 0.68;
+          });
 
           // 叶簇生成器：每个节点生出 2~4 片水彩叶，簇拥成伞冠
           const addLeafCluster = (segIdx, t, count, rnd2) => {
@@ -915,8 +944,32 @@
         ];
 
         const cam = { x: 0, y: 96, zoom: 1.16, s: 1 };
+        const scene = { x: 0, y: 0, w: 1, h: 1, cx: 0, cy: 0 };
         const par = { x: 0, y: 0, tx: 0, ty: 0, idle: 0 };
 
+        /** 为诗句、抬头和阶段文字留出独立区域；仅在布局变化时读取 DOM。 */
+        function updateComposition() {
+          const poetry = $('poetry').getBoundingClientRect();
+          const masthead = document.querySelector('.masthead').getBoundingClientRect();
+          const footer = document.querySelector('.chronicle').getBoundingClientRect();
+          const compactLandscape = view.h <= 520 && view.w > view.h;
+          const stacked = !compactLandscape && (view.w <= 760 || view.w <= view.h);
+          const top = masthead.bottom + (view.h < 520 ? 14 : 28);
+          const left = stacked ? 24 : poetry.right + 48;
+          const right = view.w - (stacked ? 24 : Math.max(32, view.w * 0.035));
+          const bottom = stacked ? poetry.top - 28 : footer.top - 32;
+          scene.x = left;
+          scene.y = top;
+          scene.w = Math.max(100, right - left);
+          scene.h = Math.max(100, bottom - top);
+          scene.cx = state.started ? left + scene.w * 0.5 : view.w * 0.5;
+          scene.cy = state.started ? top + scene.h * 0.5 : view.h * 0.28;
+          scene.poemY = poetry.top + poetry.height * 0.5;
+          scene.footerY = footer.top + footer.height * 0.5;
+          bgKey = -1;
+        }
+
+        /** 保留分镜节奏，同时把当前生长轮廓限制在图文安全区内。 */
         function readCam(p) {
           let i = 0;
           while (i < SHOTS.length - 2 && p > SHOTS[i + 1].p) i++;
@@ -925,6 +978,29 @@
           cam.x = lerp(a.x, b.x, t);
           cam.y = lerp(a.y, b.y, t);
           cam.zoom = lerp(a.zoom, b.zoom, t);
+          cam.s = view.fit * cam.zoom;
+          if (!state.started) return;
+
+          let minX = -30, maxX = 30, minY = -30, maxY = 30;
+          for (const seg of TREE.segs) {
+            if (seg.root && p >= 0.46) continue;
+            const k = growthEase(clamp((p - seg.t0) / seg.dur));
+            if (k <= 0.003) continue;
+            const P = subQuad([seg.x0, seg.y0, seg.cx, seg.cy, seg.x1, seg.y1], k);
+            for (let n = 0; n < P.length; n += 2) {
+              minX = Math.min(minX, P[n] - seg.w * 0.5);
+              maxX = Math.max(maxX, P[n] + seg.w * 0.5);
+              minY = Math.min(minY, P[n + 1] - seg.w * 0.5);
+              maxY = Math.max(maxY, P[n + 1] + seg.w * 0.5);
+            }
+          }
+          // 叶、果及风摆需要额外余量；只用静态骨架取景，镜头不追着风抖动。
+          const margin = lerp(38, 110, smoothstep(0.36, 0.62, p));
+          minX -= margin; maxX += margin; minY -= margin; maxY += 28;
+          cam.s = Math.min(cam.s, scene.w / (maxX - minX), scene.h / (maxY - minY));
+          const halfW = scene.w / (2 * cam.s), halfH = scene.h / (2 * cam.s);
+          cam.x = clamp(cam.x, maxX - halfW, minX + halfW);
+          cam.y = clamp(cam.y, maxY - halfH, minY + halfH);
         }
 
         /** 视差：指针微幅偏移；停手 2 秒后由惯性弹簧拉回标定位 */
@@ -940,7 +1016,7 @@
           par.y *= Math.pow(0.35, dt / damp);
         }
 
-        const worldToScreen = (x, y) => ({ x: view.w * 0.5 + (x - cam.x) * cam.s, y: view.h * 0.62 + (y - cam.y) * cam.s });
+        const worldToScreen = (x, y) => ({ x: scene.cx + (x - cam.x) * cam.s, y: scene.cy + (y - cam.y) * cam.s });
 
         /* ==========================================================================
            7 · 粒子系统：尘絮 → 孢子 → 光点 → 漫天花瓣
@@ -1190,25 +1266,36 @@
         const poemZh = $('poemZh');
         const poemEn = $('poemEn');
         let poemShown = -1;
+        let poemTimer = 0;
 
         function showPoem(index) {
           if (index === poemShown) return;
           poemShown = index;
           const poem = POEMS[index];
           poemEl.classList.remove('is-visible');
-          window.setTimeout(() => {
-            poemZh.innerHTML = '';
-            const chars = Array.from(poem.zh);
-            chars.forEach((ch, k) => {
-              const span = document.createElement('span');
-              span.className = ch === '，' || ch === '。' ? 'char punct' : 'char';
-              span.textContent = ch;
-              span.style.transitionDelay = (k * 0.085).toFixed(2) + 's';
-              poemZh.appendChild(span);
-            });
+          window.clearTimeout(poemTimer);
+          poemTimer = window.setTimeout(() => {
+            poemZh.replaceChildren();
+            let count = 0;
+            // 以完整诗句为排版单位，逐字动画不再把逗号挤到下一行。
+            for (const line of poem.zh.match(/[^。]+。/g) || [poem.zh]) {
+              const verse = document.createElement('span');
+              verse.className = 'verse';
+              for (const ch of line) {
+                const span = document.createElement('span');
+                span.className = ch === '，' || ch === '。' ? 'char punct' : 'char';
+                span.textContent = ch;
+                span.style.transitionDelay = (count++ * 0.085).toFixed(2) + 's';
+                verse.appendChild(span);
+              }
+              poemZh.appendChild(verse);
+            }
             poemEn.textContent = poem.en;
-            poemEn.style.transitionDelay = (chars.length * 0.085 + 0.15).toFixed(2) + 's';
-            requestAnimationFrame(() => poemEl.classList.add('is-visible'));
+            poemEn.style.transitionDelay = (count * 0.085 + 0.15).toFixed(2) + 's';
+            requestAnimationFrame(() => {
+              updateComposition();
+              poemEl.classList.add('is-visible');
+            });
           }, 180);
         }
 
@@ -1258,7 +1345,7 @@
 
           // 土壤层：地表以下（世界 y > 0）填土色，镜头上移时自然退出画面。
           // 交界处用一段渐变带柔化，避免出现一条几何硬直线。
-          const horizon = view.h * 0.62 + (0 - cam.y) * cam.s + M;
+          const horizon = scene.cy - cam.y * cam.s + M;
           if (horizon < h + 320) {
             const softTop = 130;
             const y0 = horizon - softTop;
@@ -1319,13 +1406,13 @@
            12 · 绘制：树体、叶、果、巢、鸟
            ========================================================================== */
 
-        /** 段的水彩轮廓：自根向梢自然收细，生长端如毛笔收锋般温润收尖 */
+        /** 向当前路径追加枝段轮廓；调用方决定独立绘根，或合并树身后统一着墨。 */
         function traceSeg(seg, k, bump, wScale = 1) {
           const P = segPoints(seg);
           const N = 9;
           const left = [], right = [];
           const phase = seg.phase;
-          const isGrowing = k < 0.995;
+          const tipOpen = smoothstep(0.76, 1, k);
           // 新芽抽条时幼细，长成后渐显苍劲
           const mature = Math.min(1, 0.3 + k * 1.8);
           const half = seg.w * 0.5 * wScale * mature;
@@ -1339,16 +1426,12 @@
             const nx = -tg.y / m, ny = tg.x / m;
 
             // 基础锥度：越往枝梢越细
-            let taper = half * lerp(1, 0.68, Math.pow(t, 0.72));
+            let taper = half * lerp(1, seg.tipRatio || 0.68, Math.pow(t, 0.72));
             // 若还在抽条中，尖端优雅收锋，避免平截木桩感
-            if (isGrowing) {
-              taper *= lerp(1, 0.15, Math.pow(u, 2.4));
-            } else if (seg.depth >= 4) {
-              // 终梢自然收尖
-              taper *= lerp(1, 0.25, Math.pow(u, 2.0));
-            }
+            const tipWidth = lerp(0.15, seg.depth >= 4 ? 0.25 : 1, tipOpen);
+            taper *= lerp(1, tipWidth, Math.pow(u, 2.4));
 
-            const wob = 1 + bump * Math.sin(t * 9.5 + phase);
+            const wob = 1 + bump * Math.sin(t * 9.5 + phase) * Math.sin(Math.PI * t);
             left.push({ x: pt.x + nx * taper * wob, y: pt.y + ny * taper * wob });
             right.push({ x: pt.x - nx * taper * wob, y: pt.y - ny * taper * wob });
           }
@@ -1363,7 +1446,6 @@
           const tx0 = tg0.x / m0, ty0 = tg0.y / m0;
           const rBase = Math.hypot(left[0].x - right[0].x, left[0].y - right[0].y) * 0.5;
 
-          ctx.beginPath();
           ctx.moveTo(left[0].x, left[0].y);
           for (let i = 1; i <= N; i++) ctx.lineTo(left[i].x, left[i].y);
 
@@ -1399,6 +1481,7 @@
             if (k <= 0.002) continue;
             const sub = subQuad(segPoints(seg), k);
             const single = { ...seg, points: sub };
+            ctx.beginPath();
             traceSeg(single, 1, 0.2);
             ctx.fillStyle = rgba(C.trunkLit, 0.42);
             ctx.fill();
@@ -1409,48 +1492,51 @@
           ctx.restore();
         }
 
+        /** 整棵树共用一次填色，交叠区域不再重复加深，也不描出内部端盖。 */
         function drawTree(p, C) {
           const segs = TREE.segs;
+          const girth = lerp(0.2, 1, smoothstep(0.28, 0.66, p));
           ctx.save();
           ctx.globalCompositeOperation = 'multiply';
-          ctx.lineJoin = 'round';
-          ctx.lineCap = 'round';
+          ctx.beginPath();
 
-          // 主体与水彩沉淀线：以没骨点染 + 焦墨润边，浑然一体无圆盘接缝
-          for (let i = 0; i < segs.length; i++) {
-            const seg = segs[i];
+          for (const seg of segs) {
+            seg.visibleK = 0;
             if (seg.root) continue;
-            // 父段生长未到达挂接点前，子段绝不提前在空中冒出
-            if (seg.parent >= 0) {
-              const pSeg = segs[seg.parent];
-              const pK = growthEase(clamp((p - pSeg.t0) / pSeg.dur));
-              if (pK < (seg.attachT || 1.0) - 0.003) continue;
-            }
+            if (seg.parent >= 0 && segs[seg.parent].visibleK < seg.attachT - 0.003) continue;
             const k = growthEase(clamp((p - seg.t0) / seg.dur));
             if (k <= 0.003) continue;
-            const mixT = clamp(seg.depth / 3.6);
-            const col = blendAny(C.trunk, C.trunkLit, mixT);
+            seg.visibleK = k;
+            traceSeg(seg, k, seg.depth <= 1 ? 0.055 : 0.1, girth);
+          }
 
-            // 主体水墨笔触
-            ctx.globalAlpha = lerp(0.82, 0.46, clamp(seg.depth / 4));
-            traceSeg(seg, k, seg.depth <= 1 ? 0.12 : 0.2);
-            ctx.fillStyle = rgb(col);
-            ctx.fill();
+          // 同向子路径按 nonzero 规则形成联合轮廓，alpha 只合成一次。
+          const ink = ctx.createLinearGradient(-180, TREE.minY, 90, 40);
+          ink.addColorStop(0, rgb(blendAny(C.trunk, C.trunkLit, 0.72)));
+          ink.addColorStop(0.55, rgb(blendAny(C.trunk, C.trunkLit, 0.32)));
+          ink.addColorStop(1, rgb(C.trunk));
+          ctx.globalAlpha = 0.88;
+          ctx.fillStyle = ink;
+          ctx.fill('nonzero');
+          ctx.clip('nonzero');
 
-            // 边缘水墨晕开：极其轻微的湿润边缘（仅主枝）
-            if (seg.depth <= 1) {
-              ctx.lineWidth = 1.6;
-              ctx.strokeStyle = rgba(C.trunkLit, 0.22);
-              ctx.stroke();
-            }
-
-            // 焦墨微骨线：顺着多边形边缘轻勾，让树干筋骨苍劲
-            ctx.lineWidth = seg.depth === 0 ? 1.4 : 0.9;
-            ctx.strokeStyle = rgba(C.trunk, 0.32);
+          // 只沿生长方向留下浅淡干笔，不沿每节的闭合轮廓描边。
+          ctx.lineCap = 'round';
+          for (const seg of segs) {
+            if (seg.visibleK <= 0.08 || seg.root || seg.depth > 1) continue;
+            const P = segPoints(seg);
+            const from = quadAt(P, 0.12);
+            const to = quadAt(P, seg.visibleK * 0.88);
+            const mid = quadAt(P, (0.12 + seg.visibleK * 0.88) * 0.5);
+            const offset = seg.w * girth * 0.16;
+            ctx.beginPath();
+            ctx.moveTo(from.x - offset, from.y);
+            ctx.quadraticCurveTo(mid.x - offset, mid.y, to.x - offset * 0.65, to.y);
+            ctx.lineWidth = Math.max(0.65, seg.w * girth * 0.035);
+            ctx.strokeStyle = rgba(C.trunkLit, 0.26);
             ctx.stroke();
           }
           ctx.restore();
-          ctx.globalAlpha = 1;
         }
 
         function drawLeaves(p, C, time) {
@@ -1466,6 +1552,7 @@
             if (open <= 0.01) continue;
 
             const seg = TREE.segs[lf.seg];
+            if (seg.visibleK < lf.t) continue;
             const P = segPoints(seg);
             const at = quadAt(P, lf.t);
             // 叶柄随风轻摆
@@ -1874,10 +1961,12 @@
           const fade = clamp(1 - (p - 0.32) / 0.1);
           if (k <= 0.01 || fade <= 0.01) return;
           const open = backOut(k, 1.8);
-          const seg0 = TREE.segs[0];
-          const k0 = growthEase(clamp((p - seg0.t0) / seg0.dur));
-          const P = segPoints(seg0);
-          const tip = quadAt(P, k0);
+          // 子叶随当前生长端抬升，不留在已经变成树干中段的旧端点。
+          let leader = TREE.segs[0];
+          for (const seg of TREE.segs) {
+            if (!seg.root && seg.depth === 0 && seg.visibleK > 0.003) leader = seg;
+          }
+          const tip = quadAt(segPoints(leader), leader.visibleK || 0);
 
           ctx.save();
           ctx.globalCompositeOperation = 'multiply';
@@ -1936,7 +2025,6 @@
 
           const C = climateAt(p);
           readCam(p);
-          cam.s = view.fit * cam.zoom;
           updateParallax(dt);
           updateWind(dt);
           computeSway(wind.x, wind.y, state.time);
@@ -1953,7 +2041,7 @@
 
           // ---- 世界坐标：镜头仿射矩阵 ----
           ctx.save();
-          ctx.translate(view.w * 0.5 + par.x, view.h * 0.62 + par.y);
+          ctx.translate(scene.cx + par.x, scene.cy + par.y);
           ctx.scale(cam.s, cam.s);
           ctx.translate(-cam.x, -cam.y);
 
@@ -2007,6 +2095,31 @@
         const chronicleBar = $('chronicleBar');
         const scrollHint = $('scrollHint');
 
+        /** 根据文字所在高度估算天空与地表底色，选择较清晰的暖白或深墨色。 */
+        function readableInk(C, screenY) {
+          const h = view.h + BG_MARGIN * 2;
+          const y = screenY + BG_MARGIN;
+          const skyT = clamp(y / h);
+          let color = skyT < 0.52
+            ? blendAny(C.sky[0], C.sky[1], skyT / 0.52)
+            : blendAny(C.sky[1], C.sky[2], (skyT - 0.52) / 0.48);
+          const y0 = scene.cy - cam.y * cam.s + BG_MARGIN - 130;
+          if (y > y0) {
+            const t = clamp((y - y0) / Math.max(1, h - y0));
+            const edge = clamp(130 / Math.max(1, h - y0), 0.04, 0.7);
+            const ground = blendAny(C.ground[0], C.ground[1], clamp((t - edge) / (1 - edge)));
+            const alpha = t < edge ? t / edge * 0.97 : lerp(0.97, 1, (t - edge) / (1 - edge));
+            color = blendAny(color, ground, alpha);
+          }
+          const luminance = (c) => c.map(v => {
+            const s = v / 255;
+            return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+          }).reduce((sum, v, i) => sum + v * [0.2126, 0.7152, 0.0722][i], 0);
+          const light = [250, 242, 225], dark = [38, 35, 27];
+          const L = luminance(color);
+          return (luminance(light) + 0.05) / (L + 0.05) > (L + 0.05) / (luminance(dark) + 0.05) ? light : dark;
+        }
+
         function updateHud(p, C, dt) {
           hudTick++;
           const si = Math.min(STAGE_COUNT - 1, Math.floor(p * STAGE_COUNT));
@@ -2022,6 +2135,8 @@
             const root = document.documentElement.style;
             root.setProperty('--ink', rgb(C.ink));
             root.setProperty('--accent', rgb(C.accent));
+            root.setProperty('--poem-ink', rgb(readableInk(C, scene.poemY)));
+            root.setProperty('--footer-ink', rgb(readableInk(C, scene.footerY)));
             const alpha = C.index === 2 ? 0.6 : 0.5;
             root.setProperty('--muted', rgba(C.ink, alpha));
             root.setProperty('--faint', rgba(C.ink, 0.34));
@@ -2046,6 +2161,8 @@
           canvas.style.width = view.w + 'px';
           canvas.style.height = view.h + 'px';
 
+          updateComposition();
+          readCam(state.p);
           buildPaperTexture(view.w * 1.15, view.h * 1.15);
           buildParticles();
           bgKey = -1;
@@ -2116,6 +2233,8 @@
           state.started = true;
           state.locked = false;
           document.body.classList.remove('locked');
+          $('hud').inert = false;
+          updateComposition();
           window.scrollTo(0, 0);
           toggleAudio();
           state.soundOn = true;

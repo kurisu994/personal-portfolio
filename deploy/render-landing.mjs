@@ -72,7 +72,11 @@ const document = `<!doctype html>
         -webkit-font-smoothing: antialiased;
       }
 
-      header { max-width: 62rem; }
+      /* 入口页只有一列正文，统一收在 shell 里并水平居中；窄屏时自动退回 body 的内边距 */
+      .shell {
+        max-width: 62rem;
+        margin-inline: auto;
+      }
 
       .eyebrow {
         margin: 0;
@@ -112,7 +116,6 @@ const document = `<!doctype html>
       }
 
       .works {
-        max-width: 62rem;
         margin: 0;
         padding: 0;
         list-style: none;
@@ -192,7 +195,6 @@ const document = `<!doctype html>
       .work a:hover .work__arrow { transform: translateX(6px); }
 
       footer {
-        max-width: 62rem;
         margin-top: clamp(36px, 6vw, 60px);
         color: var(--muted);
         font-size: 0.68rem;
@@ -214,20 +216,22 @@ const document = `<!doctype html>
     </style>
   </head>
   <body>
-    <header>
-      <p class="eyebrow">Portfolio</p>
-      <h1>${escapeHtml(manifest.title)}</h1>
-      <p class="tagline">${escapeHtml(manifest.tagline)}</p>
-      <p class="description">${escapeHtml(manifest.description)}</p>
-    </header>
+    <div class="shell">
+      <header>
+        <p class="eyebrow">Portfolio</p>
+        <h1>${escapeHtml(manifest.title)}</h1>
+        <p class="tagline">${escapeHtml(manifest.tagline)}</p>
+        <p class="description">${escapeHtml(manifest.description)}</p>
+      </header>
 
-    <hr class="rule" />
+      <hr class="rule" />
 
-    <ul class="works">
+      <ul class="works">
 ${cards}
-    </ul>
+      </ul>
 
-    <footer>共 ${works.length} 件作品 · 画面、配乐与诗歌文本保留所有权利 · <a href="./LICENSE">源代码采用 MIT 许可</a></footer>
+      <footer>共 ${works.length} 件作品 · 画面、配乐与诗歌文本保留所有权利 · <a href="./LICENSE">源代码采用 MIT 许可</a></footer>
+    </div>
   </body>
 </html>
 `;
