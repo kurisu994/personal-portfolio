@@ -6,10 +6,10 @@
     <meta name="theme-color" content="#f7f4eb" />
     <meta
       name="description"
-      content="树之物语 · SHUZHI 简易版。零第三方依赖的单文件交互艺术：滚动驱动一粒种子破土、拔节、分叉，直到结出果实、百鸟归巢。"
+      content="一木 · ARBOR。不催一叶，不问归期。向下滚动，看一粒种子生根、成荫，直到果熟鸟归。零依赖单文件版。"
     />
     <link rel="icon" href="data:,">
-    <title>树之物语 · SHUZHI（简易版）</title>
+    <title>一木 · ARBOR（简易版）</title>
     <style>
       :root {
         color-scheme: light;
@@ -344,7 +344,7 @@
 
     <div class="hud" id="hud" inert>
       <header class="masthead">
-        <h1 class="brand">树之物语<span class="brand-en">SHUZHI</span></h1>
+        <h1 class="brand">一木<span class="brand-en">ARBOR</span></h1>
         <div class="tools">
           <button class="tool" id="audioBtn" type="button" aria-pressed="false" title="开启 / 关闭声音（M）" aria-label="声音开关">
             <svg viewBox="0 0 20 20" aria-hidden="true">
@@ -372,7 +372,7 @@
       <footer class="chronicle">
         <div class="chronicle-stage">
           <span id="stageIndex">01</span>
-          <span id="stageName">胚芽 / WARM</span>
+          <span id="stageName">藏春 / WARM</span>
         </div>
         <div class="chronicle-track"><i class="chronicle-bar" id="chronicleBar"></i></div>
       </footer>
@@ -380,12 +380,12 @@
 
     <div class="intro" id="intro">
       <div class="intro-inner">
-        <div class="intro-kicker">一 粒 微 尘 里 ， 大 千 正 呼 吸</div>
-        <h2 class="intro-title">树之物语</h2>
-        <div class="intro-en">SHUZHI</div>
-        <p class="intro-copy">向下滚动，让一粒种子破土、拔节、分叉，<br />直到它结出果实，把飞鸟召回家。</p>
+        <div class="intro-kicker">不 催 一 叶 ， 不 问 归 期</div>
+        <h2 class="intro-title">一木</h2>
+        <div class="intro-en">ARBOR</div>
+        <p class="intro-copy">落一粒种子，留一处清静。<br />看它慢慢长成自己的模样。</p>
         <button class="intro-btn" id="beginBtn" type="button"><span>落子生根</span><span class="arrow">→</span></button>
-        <div class="intro-note">滚 动 即 是 时 间</div>
+        <div class="intro-note">向 下 滚 动 ， 四 时 渐 深</div>
       </div>
     </div>
 
@@ -463,24 +463,6 @@
           return [P[0], P[1], ax, ay, lerp(ax, bx, t), lerp(ay, by, t)];
         };
 
-        /** One Euro 滤波：抑制鼠标速度抖动，同时保留快速响应 */
-        function oneEuroFilter(minCutoff = 1.1, beta = 0.012, dCutoff = 1.0) {
-          let xPrev = null, dxPrev = 0;
-          const alpha = (cut, dt) => { const tau = 1 / (TAU * cut); return 1 / (1 + tau / dt); };
-          return (x, dt) => {
-            dt = Math.max(dt, 1 / 240);
-            if (xPrev === null) { xPrev = x; return x; }
-            const dx = (x - xPrev) / dt;
-            const aD = alpha(dCutoff, dt);
-            const dxHat = aD * dx + (1 - aD) * dxPrev;
-            const cut = minCutoff + beta * Math.abs(dxHat);
-            const a = alpha(cut, dt);
-            const xHat = a * x + (1 - a) * xPrev;
-            xPrev = xHat; dxPrev = dxHat;
-            return xHat;
-          };
-        }
-
         /* ==========================================================================
            1 · 五段生命气候
            每段提供一整套绘制色；相邻两段之间用 4 阶贝塞尔做连续插值，绝不硬切。
@@ -489,7 +471,7 @@
         const PALETTES = [
           {
             // 01 胚芽 · 泥土暗啡与温润淡黄，种子在黑暗中呼吸
-            name: '胚芽', en: 'WARM',
+            name: '藏春', en: 'WARM',
             sky: [[72, 54, 40], [104, 82, 56], [58, 42, 32]],
             ground: [[86, 65, 47], [50, 36, 26]],
             sun: [232, 198, 130], sunPos: [0.5, 0.44], sunPow: 0.5,
@@ -501,7 +483,7 @@
           },
           {
             // 02 破土 · 迷雾青绿与晨曦微光
-            name: '破土', en: 'MIST',
+            name: '初见', en: 'MIST',
             sky: [[152, 178, 168], [202, 214, 196], [232, 236, 222]],
             ground: [[120, 114, 90], [86, 82, 64]],
             sun: [255, 248, 222], sunPos: [0.74, 0.2], sunPow: 0.62,
@@ -513,7 +495,7 @@
           },
           {
             // 03 拔节 · 晚霞橙粉与暮色紫罗兰，树干逆光成剪影
-            name: '拔节', en: 'DUSK',
+            name: '向远', en: 'DUSK',
             sky: [[104, 86, 140], [206, 142, 132], [242, 196, 160]],
             ground: [[96, 78, 86], [62, 50, 60]],
             sun: [255, 208, 152], sunPos: [0.3, 0.54], sunPow: 0.7,
@@ -525,7 +507,7 @@
           },
           {
             // 04 繁茂 · 盛夏浓绿与翠蓝，二级三级枝如网蔓延
-            name: '繁茂', en: 'FOREST',
+            name: '听风', en: 'FOREST',
             sky: [[92, 152, 152], [152, 190, 170], [206, 218, 178]],
             ground: [[98, 118, 78], [64, 84, 56]],
             sun: [250, 252, 228], sunPos: [0.62, 0.14], sunPow: 0.55,
@@ -537,7 +519,7 @@
           },
           {
             // 05 圆满 · 暖金溢光与天青如洗，果实与鸟巢共生
-            name: '圆满', en: 'RECOMPENSE',
+            name: '归一', en: 'RECOMPENSE',
             sky: [[248, 232, 186], [230, 214, 182], [176, 208, 214]],
             ground: [[178, 184, 126], [134, 150, 102]],
             sun: [255, 246, 198], sunPos: [0.5, 0.17], sunPow: 0.68,
@@ -578,11 +560,11 @@
 
         /** 五段禅意短诗 */
         const POEMS = [
-          { zh: '一粒微尘里，大千正呼吸。莫道幽冥暗，开源待此契。', en: 'In one speck of dust the whole world breathes. Call not the dark a prison — the beginning waits here.' },
-          { zh: '苔痕破冷土，新绿见天心。不见风雷动，乾坤一线深。', en: 'Moss splits the cold earth; new green meets heaven\u2019s heart. No thunder is seen, yet in one line lies the depth of the world.' },
-          { zh: '虚心横乱云，修直向晚晴。一身承风雨，冷暖不须惊。', en: 'Hollow at heart, it crosses wild clouds, straight toward the evening clear. One body bears all weather — no shock at cold or warm.' },
-          { zh: '万叶共一音，婆娑弄清影。坐对荣枯事，方知物我静。', en: 'Ten thousand leaves, one voice, dancing their clear shadows. Sitting with flourish and fading, things and I grow still.' },
-          { zh: '红熟惊造化，鸟落旧枝安。因缘归一木，天地此心宽。', en: 'Ripe red startles creation; a bird settles, at home on the old branch. All cause returns to one tree, and the heart widens to earth and sky.' },
+          { zh: '一粒入深土，万籁归于静。未见枝头春，根已知归处。', en: 'Beneath the quiet earth, a seed takes root.' },
+          { zh: '微光穿薄雾，新绿破苔痕。不问春深浅，先将一叶伸。', en: 'One small leaf opens to the morning.' },
+          { zh: '枝向远天去，根于深土安。风来身自直，雨过心犹宽。', en: 'Branches reach. Roots remain.' },
+          { zh: '万叶各有声，听来只一风。影随云往复，坐久见山空。', en: 'A thousand leaves. A single passing wind.' },
+          { zh: '果熟枝低处，鸟归暮色中。因缘归一木，天地此心宽。', en: 'Fruit ripens. A bird returns. Nothing more is needed.' },
         ];
 
         /* ==========================================================================
@@ -858,38 +840,11 @@
         }
 
         /* ==========================================================================
-           5 · 风场：鼠标速度 → 弯曲位移（One Euro 滤波 + 阻尼缓动）
+           5 · 自然风：仅由时间驱动，树形不响应鼠标
            ========================================================================== */
 
-        const wind = {
-          rawX: 0, rawY: 0, x: 0, y: 0, gust: 0,
-          fx: oneEuroFilter(1.0, 0.02),
-          fy: oneEuroFilter(1.0, 0.02),
-          mx: 0, my: 0, lastMx: 0, lastMy: 0, hasPointer: false,
-        };
-
-        /** 采样指针位置，折算成风力原始值 */
-        function feedWind(x, y, dt) {
-          if (!wind.hasPointer) { wind.lastMx = x; wind.lastMy = y; wind.hasPointer = true; }
-          const vx = (x - wind.lastMx) / Math.max(dt, 1 / 240);
-          const vy = (y - wind.lastMy) / Math.max(dt, 1 / 240);
-          wind.lastMx = x; wind.lastMy = y;
-          wind.rawX = clamp(vx * 0.0009, -1, 1);
-          wind.rawY = clamp(vy * 0.0006, -1, 1);
-          wind.mx = x / view.w;
-          wind.my = y / view.h;
-          wind.gust = Math.min(1, wind.gust + Math.min(0.4, Math.hypot(vx, vy) * 0.00022));
-        }
-
-        /** 每帧更新风力：One Euro 平滑 + 指数回落 */
-        function updateWind(dt) {
-          wind.x = wind.fx(wind.rawX, dt);
-          wind.y = wind.fy(wind.rawY, dt);
-          const decay = Math.pow(0.06, dt);
-          wind.rawX *= decay;
-          wind.rawY *= decay;
-          wind.gust *= Math.pow(0.25, dt);
-        }
+        // 外部风力保持为零，computeSway 内的呼吸项仍提供轻微自然摆动。
+        const wind = { x: 0, y: 0, gust: 0 };
 
         /** 按层级累积弯曲偏移，子段起点动态锚定在父段曲线上，浑然一体 */
         function computeSway(px, py, t) {
@@ -945,7 +900,7 @@
 
         const cam = { x: 0, y: 96, zoom: 1.16, s: 1 };
         const scene = { x: 0, y: 0, w: 1, h: 1, cx: 0, cy: 0 };
-        const par = { x: 0, y: 0, tx: 0, ty: 0, idle: 0 };
+        const par = { x: 0, y: 0 };
 
         /** 为诗句、抬头和阶段文字留出独立区域；仅在布局变化时读取 DOM。 */
         function updateComposition() {
@@ -1001,19 +956,6 @@
           const halfW = scene.w / (2 * cam.s), halfH = scene.h / (2 * cam.s);
           cam.x = clamp(cam.x, maxX - halfW, minX + halfW);
           cam.y = clamp(cam.y, maxY - halfH, minY + halfH);
-        }
-
-        /** 视差：指针微幅偏移；停手 2 秒后由惯性弹簧拉回标定位 */
-        function updateParallax(dt) {
-          if (wind.hasPointer && !reduceMotion) {
-            par.tx = (wind.mx - 0.5) * 46;
-            par.ty = (wind.my - 0.5) * 30;
-          }
-          const k = 4.2, damp = 6.0;
-          par.x += (par.tx - par.x) * Math.min(1, k * dt);
-          par.y += (par.ty - par.y) * Math.min(1, k * dt);
-          par.x *= Math.pow(0.35, dt / damp);
-          par.y *= Math.pow(0.35, dt / damp);
         }
 
         const worldToScreen = (x, y) => ({ x: scene.cx + (x - cam.x) * cam.s, y: scene.cy + (y - cam.y) * cam.s });
@@ -2025,8 +1967,6 @@
 
           const C = climateAt(p);
           readCam(p);
-          updateParallax(dt);
-          updateWind(dt);
           computeSway(wind.x, wind.y, state.time);
           updateFlock(p, dt, state.time);
           const pinfo = updateParticles(dt, p, C);
@@ -2177,12 +2117,6 @@
         }
 
         window.addEventListener('scroll', readScroll, { passive: true });
-
-        window.addEventListener(
-          'pointermove',
-          (e) => feedWind(e.clientX, e.clientY, 1 / 60),
-          { passive: true }
-        );
 
         window.addEventListener('resize', () => {
           view.dpr = Math.min(2, window.devicePixelRatio || 1);
