@@ -19,7 +19,6 @@ const START_POSITIONS = CLIMATES.map((_, index) => index * SEGMENT_LENGTH + SEGM
 const PaperShader = {
   uniforms: {
     tDiffuse: { value: null },
-    time: { value: 0 },
     grain: { value: 0.024 },
     vignette: { value: 0.08 },
   },
@@ -32,20 +31,20 @@ const PaperShader = {
   `,
   fragmentShader: /* glsl */ `
     uniform sampler2D tDiffuse;
-    uniform float time;
     uniform float grain;
     uniform float vignette;
     varying vec2 vUv;
 
+    /** 纸纹必须锁在屏幕上：这类高频噪声一旦逐帧重采样，整屏会持续闪烁，平静水面最明显。 */
     float paperNoise(vec2 point) {
       vec3 p3 = fract(vec3(point.xyx) * vec3(443.8975, 397.2973, 491.1871));
-      p3 += dot(p3, p3.yzx + 19.19 + time * 0.0007);
+      p3 += dot(p3, p3.yzx + 19.19);
       return fract((p3.x + p3.y) * p3.z);
     }
 
     void main() {
       vec4 source = texture2D(tDiffuse, vUv);
-      float noise = paperNoise(vUv * vec2(1783.0, 997.0) + time * 0.13) - 0.5;
+      float noise = paperNoise(vUv * vec2(1783.0, 997.0)) - 0.5;
       float edge = 1.0 - smoothstep(0.18, 0.86, distance(vUv, vec2(0.5)));
       source.rgb += noise * grain;
       source.rgb *= mix(1.0 - vignette, 1.0, edge);
@@ -289,7 +288,6 @@ export class MigrationEngine {
     this.updateEnvironment(climate, delta);
     this.updateAudio(directorState);
 
-    this.paperPass.uniforms.time.value = this.elapsed;
     this.paperPass.uniforms.grain.value = lerp(0.018, 0.03, climate.mist * 0.45 + climate.night * 0.35);
     this.bloomPass.strength = lerp(0.13, 0.37, climate.night) + climate.front * 0.08;
     this.composer.render(delta);

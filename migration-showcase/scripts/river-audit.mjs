@@ -20,6 +20,16 @@ const engineSource = await readFile(new URL('src/scene/MigrationEngine.ts', root
 const near = Number(engineSource.match(/PerspectiveCamera\(42, 1, ([\d.]+), 7200\)/)?.[1]);
 assert.ok(Number.isFinite(near), '需要从真实引擎读取镜头近裁剪面');
 
+// 校验防退化：PaperShader 的纸纹不能引入时间项，否则超越奈奎斯特采样会在平静水面和天空导致高频像素抖动
+assert.ok(
+  !/paperNoise\([^)]*time/i.test(engineSource) && !/uniform\s+float\s+time;/i.test(engineSource),
+  'PaperShader 纸纹噪声必须保持屏幕空间静态，不得采样时间 uniform（否则水面全屏闪烁）',
+);
+assert.ok(
+  !engineSource.includes('paperPass.uniforms.time'),
+  '引擎主循环中不得给纸纹传递时间驱动',
+);
+
 const document = `<!doctype html><meta charset="utf-8"><title>河面稳定性检视</title>
 <style>body{margin:0;background:#202528}canvas{width:1440px;height:900px;display:block}</style><canvas></canvas>
 <script type="importmap">{"imports":{"three":"/three.module.js"}}</script>
