@@ -1,0 +1,35 @@
+{
+  "name": "arbor-showcase",
+  "private": true,
+  "version": "1.0.0",
+  "license": "MIT",
+  "type": "module",
+  "packageManager": "pnpm@12.4.2",
+  "engines": { "node": ">=22.12.0" },
+  "scripts": {
+    "dev": "rsbuild dev --host 127.0.0.1 --port 3002",
+    "build": "rsbuild build",
+    "preview": "rsbuild preview --host 127.0.0.1 --port 3002",
+    "typecheck": "tsc --noEmit",
+    "verify:simulation": "tsx scripts/simulation-audit.ts"
+  },
+  "dependencies": {
+    "@fontsource-variable/manrope": "^5.3.0",
+    "@fontsource-variable/noto-serif-sc": "^5.3.0",
+    "gsap": "3.15.0",
+    "lucide-react": "^1.46.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "simplex-noise": "4.0.3",
+    "three": "^0.186.0"
+  },
+  "devDependencies": {
+    "@rsbuild/core": "^2.2.6",
+    "@rsbuild/plugin-react": "^2.1.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@types/three": "^0.186.0",
+    "tsx": "^4.23.13",
+    "typescript": "^7.0.2"
+  }
+}

@@ -1,0 +1,289 @@
+:root {
+  font-family: 'Manrope Variable', system-ui, sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  color-scheme: dark;
+  --ui: 1;
+  --serif: 'Noto Serif SC Variable', 'Songti SC', serif;
+  --ui-ink: #f5ebd4;
+  --ui-accent: #d5b57e;
+  --gutter: clamp(20px, calc(42px * var(--ui)), 76px);
+}
+
+* { box-sizing: border-box; }
+html { margin: 0; background: #f7f4eb; scroll-behavior: auto; }
+body { margin: 0; height: 100svh; overflow: hidden; -webkit-tap-highlight-color: transparent; }
+body[data-started='true'] { height: calc(10000px + var(--viewport-height, 100svh)); overflow-x: clip; overflow-y: auto; }
+#root, .arbor { min-height: 100svh; }
+.arbor { color: var(--ui-ink); }
+[hidden] { display: none !important; }
+button { padding: 0; border: 0; border-radius: 0; color: inherit; font: inherit; background: transparent; cursor: pointer; touch-action: manipulation; }
+button:disabled { cursor: wait; opacity: 0.55; }
+button:focus-visible { outline: 2px solid currentColor; outline-offset: 5px; }
+button, a { -webkit-tap-highlight-color: transparent; }
+::selection { color: #29251d; background: #d5b57e; }
+
+.scene-canvas {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  display: block;
+  width: 100%;
+  height: 100dvh;
+  touch-action: pan-y pinch-zoom;
+}
+.scene-canvas:focus { outline: none; }
+.scene-canvas:focus-visible { outline: 1px solid var(--ui-accent); outline-offset: -6px; }
+.topbar {
+  position: fixed;
+  z-index: 5;
+  top: max(18px, env(safe-area-inset-top));
+  right: max(var(--gutter), env(safe-area-inset-right));
+  left: max(var(--gutter), env(safe-area-inset-left));
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 44px;
+  gap: 16px;
+  pointer-events: none;
+}
+.arbor[data-started='true'] .topbar { color: var(--header-ink, var(--ui-ink)); }
+.brand { display: flex; align-items: center; gap: clamp(10px, calc(15px * var(--ui)), 22px); flex-shrink: 0; }
+.brand__chinese { font: 450 clamp(18px, calc(20px * var(--ui)), 24px) / 1.2 var(--serif); letter-spacing: 0.14em; }
+.brand__rule { width: 1px; height: 15px; background: currentColor; opacity: 0.35; }
+.brand__english { font-size: clamp(10px, calc(11px * var(--ui)), 14px); font-weight: 500; letter-spacing: 0.26em; }
+.opening-note { font: 400 13px / 1.6 var(--serif); letter-spacing: 0.16em; opacity: 0.72; }
+.controls { display: flex; align-items: center; gap: clamp(2px, calc(8px * var(--ui)), 14px); pointer-events: auto; }
+.icon-button {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: max(44px, calc(44px * var(--ui)));
+  height: max(44px, calc(44px * var(--ui)));
+  border: 1px solid transparent;
+  border-radius: 50%;
+  transition: border-color 200ms ease, background-color 200ms ease, opacity 200ms ease;
+}
+.icon-button svg { width: clamp(18px, calc(19px * var(--ui)), 25px); height: clamp(18px, calc(19px * var(--ui)), 25px); stroke-width: 1.45; }
+.icon-button:hover { border-color: color-mix(in srgb, currentColor 32%, transparent); background: color-mix(in srgb, currentColor 8%, transparent); }
+
+.opening {
+  position: fixed;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  overflow-y: auto;
+  padding: max(96px, env(safe-area-inset-top)) max(var(--gutter), env(safe-area-inset-right)) max(76px, env(safe-area-inset-bottom)) max(10vw, env(safe-area-inset-left));
+  pointer-events: auto;
+  /* 开场保持透明，光与土地的质感直接来自引擎。 */
+}
+.opening__body { width: min(540px, 48vw); margin-block: auto; text-shadow: 0 2px 24px rgb(20 17 12 / 20%); }
+.opening__eyebrow { margin: 0 0 clamp(24px, 4vh, 44px); font-size: clamp(10px, calc(11px * var(--ui)), 13px); font-weight: 450; letter-spacing: 0.22em; opacity: 0.72; }
+.opening h1 { display: flex; flex-direction: column; align-items: flex-start; gap: clamp(17px, 2.6vh, 28px); margin: 0; font-weight: 400; }
+.opening h1 > span:first-child { font: 420 clamp(54px, calc(104px * var(--ui)), 120px) / 1.18 var(--serif); letter-spacing: 0.18em; margin-right: -0.18em; }
+.opening__english { padding-left: 5px; font-size: clamp(14px, calc(18px * var(--ui)), 23px); font-weight: 380; line-height: 1.5; letter-spacing: 0.64em; }
+.opening__lead { margin: clamp(28px, 5vh, 48px) 0 0; font: 420 clamp(18px, calc(23px * var(--ui)), 28px) / 1.8 var(--serif); letter-spacing: 0.09em; }
+.opening__description { max-width: 28em; margin: 12px 0 0; font: 350 clamp(16px, calc(17px * var(--ui)), 20px) / 1.95 var(--serif); text-wrap: pretty; opacity: 0.8; }
+.opening__action { margin-top: clamp(30px, 5.5vh, 58px); }
+.begin-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 48px;
+  min-width: clamp(190px, calc(222px * var(--ui)), 270px);
+  min-height: max(52px, calc(58px * var(--ui)));
+  padding: 14px 24px;
+  border: 1px solid #ddc18f;
+  color: #30291e;
+  background: #d5b57e;
+  font: 500 clamp(16px, calc(17px * var(--ui)), 20px) / 1.4 var(--serif);
+  letter-spacing: 0.14em;
+  text-shadow: none;
+  pointer-events: auto;
+  transition: background-color 250ms ease, box-shadow 250ms ease;
+}
+.begin-button svg { width: 20px; height: 20px; stroke-width: 1.4; transition: transform 250ms ease; }
+.begin-button:hover:not(:disabled) { background: #e2c795; box-shadow: 0 3px 24px rgb(213 181 126 / 12%); }
+.begin-button:hover:not(:disabled) svg { transform: translateX(4px); }
+.begin-button:focus-visible { outline-color: #f5ebd4; }
+.opening__hint { display: flex; align-items: center; gap: 10px; margin: 18px 0 0; font: 350 16px / 1.6 var(--serif); opacity: 0.74; }
+.opening__hint svg { width: 14px; height: 18px; stroke-width: 1.3; }
+.opening__footnote { position: fixed; right: var(--gutter); bottom: max(25px, env(safe-area-inset-bottom)); left: var(--gutter); display: flex; justify-content: space-between; gap: 20px; font: 350 12px / 1.6 var(--serif); letter-spacing: 0.14em; opacity: 0.55; }
+.opening__footnote [lang='en'] { font: 450 9px / 1.6 'Manrope Variable', sans-serif; letter-spacing: 0.2em; }
+
+.journey-ui { position: fixed; inset: 0; z-index: 3; pointer-events: none; animation: reveal-ui 900ms ease both; }
+.poem {
+  position: absolute;
+  top: 43%;
+  left: max(9vw, env(safe-area-inset-left));
+  width: min(350px, 30vw);
+  transform: translateY(-38%);
+}
+/* 隐去文字仍保留安全区，切换诗句或缩放窗口时镜头不会突然跳位。 */
+.poem[data-visible='false'] { visibility: hidden; }
+.poem__eyebrow { display: flex; align-items: center; gap: 12px; font: 400 12px / 1.5 var(--serif); letter-spacing: 0.16em; opacity: 0.68; }
+.poem__eyebrow > span:first-child { font: 450 11px / 1.5 'Manrope Variable', sans-serif; letter-spacing: 0.08em; }
+.poem__eyebrow i { display: block; width: clamp(25px, 3vw, 48px); height: 1px; background: currentColor; opacity: 0.6; }
+.poem h2 { margin: 20px 0 24px; font: 400 clamp(30px, calc(43px * var(--ui)), 54px) / 1.45 var(--serif); letter-spacing: 0.2em; }
+.poem__verses { display: grid; grid-template-columns: max-content max-content; column-gap: 0.6em; row-gap: 0.4em; font: 420 clamp(16px, calc(19px * var(--ui)), 23px) / 1.9 var(--serif); letter-spacing: 0.055em; }
+.poem__clause { white-space: nowrap; }
+.poem__character { display: inline-block; animation: reveal-character 780ms both; }
+.poem__whisper { margin: 24px 0 0; max-width: 30em; font-size: clamp(10px, calc(11px * var(--ui)), 14px); font-weight: 450; line-height: 1.8; letter-spacing: 0.065em; opacity: 0.64; }
+.poem__chapter h2, .poem__eyebrow, .poem__whisper { animation: reveal-ui 1s both; }
+.journey-footer {
+  position: absolute;
+  right: max(var(--gutter), env(safe-area-inset-right));
+  bottom: max(23px, env(safe-area-inset-bottom));
+  left: max(var(--gutter), env(safe-area-inset-left));
+  width: min(100% - var(--gutter) * 2, calc(1080px * var(--ui)));
+  margin-inline: auto;
+  color: var(--footer-ink, var(--ui-ink));
+}
+.journey-footer__meta { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding-bottom: 15px; }
+.journey-footer__meta p { display: flex; align-items: center; gap: 9px; margin: 0; font: 350 16px / 1.6 var(--serif); }
+.journey-footer__meta svg { width: 14px; height: 17px; stroke-width: 1.3; flex-shrink: 0; }
+.journey-footer__progress { font-size: 13px; font-weight: 450; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.journey-footer__progress small { font-size: 10px; opacity: 0.6; }
+.journey-track { height: 1px; background: color-mix(in srgb, var(--ui-ink) 23%, transparent); }
+.journey-track > i { display: block; width: 100%; height: 1px; background: var(--ui-accent); transform: scaleX(var(--journey-progress)); transform-origin: left; transition: transform 130ms linear; }
+.stage-scale { display: grid; grid-template-columns: repeat(5, 1fr); margin: 0; padding: 0; list-style: none; }
+.stage-scale li { position: relative; display: flex; align-items: center; gap: 9px; padding-top: 15px; font: 400 14px / 1.6 var(--serif); letter-spacing: 0.08em; opacity: 0.5; transition: opacity 500ms; }
+.stage-scale li > i { position: absolute; top: 0; left: 0; width: 1px; height: 5px; background: currentColor; transition: height 500ms; }
+.stage-scale li[data-active='true'] { opacity: 1; }
+.stage-scale li[data-active='true'] > i { height: 9px; background: var(--ui-accent); }
+.stage-scale li[data-passed='true'] { opacity: 0.72; }
+.stage-scale__number { font: 450 9px / 1.6 'Manrope Variable', sans-serif; font-variant-numeric: tabular-nums; opacity: 0.7; }
+
+.notice { position: fixed; z-index: 8; top: max(78px, calc(env(safe-area-inset-top) + 60px)); right: max(var(--gutter), env(safe-area-inset-right)); display: flex; align-items: center; gap: 4px; max-width: min(440px, calc(100vw - var(--gutter) * 2)); padding: 10px 8px 10px 18px; color: #f5ebd4; border: 1px solid rgb(213 181 126 / 25%); background: #302b23; }
+.notice p { margin: 0; font: 400 16px / 1.8 var(--serif); }
+.render-fallback { position: fixed; inset: 0; z-index: 10; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; overflow-y: auto; padding: 36px max(24px, 12vw); color: #f5ebd4; background: #29251d; }
+.render-fallback__eyebrow { font-size: 12px; letter-spacing: 0.4em; color: #d5b57e; }
+.render-fallback h1 { margin: 28px 0 16px; font: 400 clamp(24px, 4vw, 44px) / 1.5 var(--serif); }
+.render-fallback h1:focus { outline: none; }
+.render-fallback p { max-width: 34em; margin: 8px 0; font: 350 16px / 1.9 var(--serif); }
+.render-fallback .begin-button { margin-top: 26px; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; padding: 0; border: 0; clip-path: inset(50%); white-space: nowrap; }
+
+@keyframes reveal-ui { from { opacity: 0; } to { opacity: 1; } }
+@keyframes reveal-character { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+@media (max-width: 760px) and (orientation: portrait) {
+  :root { --gutter: 24px; }
+  .topbar { top: max(16px, env(safe-area-inset-top)); }
+  .opening { align-items: center; padding-left: 9vw; padding-right: 9vw; }
+  .opening__body { width: 100%; max-width: 440px; margin-top: 1vh; }
+  .opening__eyebrow { margin-bottom: 25px; font-size: 9px; letter-spacing: 0.16em; }
+  .opening h1 > span:first-child { font-size: clamp(68px, 19vw, 100px); }
+  .opening__english { font-size: 16px; letter-spacing: 0.58em; }
+  .opening__lead { margin-top: 32px; font-size: 20px; }
+  .opening__description { max-width: 20em; font-size: 16px; }
+  .opening__action { margin-top: 30px; }
+  .opening-note { font-size: 11px; }
+  .opening__footnote [lang='en'] { display: none; }
+  .poem { top: auto; right: var(--gutter); bottom: max(145px, calc(env(safe-area-inset-bottom) + 125px)); left: var(--gutter); width: auto; transform: none; text-align: center; }
+  .poem__eyebrow { justify-content: center; font-size: 11px; }
+  .poem h2 { margin: 12px 0 14px; font-size: 30px; }
+  .poem__verses { justify-content: center; font-size: 17px; column-gap: 0.3em; row-gap: 0.18em; }
+  .poem__whisper { margin: 16px auto 0; font-size: 10px; }
+  .journey-footer { bottom: max(20px, env(safe-area-inset-bottom)); }
+  .stage-scale li { gap: 5px; font-size: 13px; letter-spacing: 0.06em; }
+}
+
+@media (max-width: 380px) {
+  :root { --gutter: 16px; }
+  .brand { gap: 8px; }
+  .brand__english { font-size: 9px; letter-spacing: 0.15em; }
+  .brand__chinese { font-size: 17px; }
+  .controls { gap: 0; }
+  .icon-button { width: 44px; height: 44px; }
+  .opening-note { font-size: 10px; letter-spacing: 0; }
+  .opening__lead { font-size: 18px; letter-spacing: 0.04em; }
+  .poem__verses { grid-template-columns: max-content; font-size: 16px; line-height: 1.7; row-gap: 0; }
+  .poem h2 { font-size: 27px; margin-block: 9px; }
+  .poem__whisper { margin-top: 10px; }
+  .stage-scale__number { display: none; }
+  .journey-footer__meta { gap: 8px; }
+  .journey-footer__meta p { font-size: 14px; gap: 5px; }
+}
+
+/* 横屏保留左右叙事，不旋转画布；短屏压缩留白而非压小正文。 */
+@media (max-height: 620px) {
+  .opening { padding-top: 82px; padding-bottom: 45px; }
+  .opening__body { margin-top: 0; }
+  .opening__eyebrow { margin-bottom: 14px; }
+  .opening h1 { gap: 10px; }
+  .opening h1 > span:first-child { font-size: 64px; }
+  .opening__english { font-size: 13px; }
+  .opening__lead { margin-top: 18px; font-size: 18px; }
+  .opening__description { margin-top: 6px; line-height: 1.65; }
+  .opening__action { margin-top: 20px; }
+  .opening__hint { margin-top: 12px; }
+  .opening__footnote { bottom: 14px; }
+  .poem h2 { margin-block: 10px; font-size: 30px; }
+  .poem__whisper { margin-top: 12px; }
+  .journey-footer { bottom: max(14px, env(safe-area-inset-bottom)); }
+}
+
+@media (orientation: landscape) and (max-height: 540px) {
+  :root { --gutter: 24px; }
+  .topbar { top: max(8px, env(safe-area-inset-top)); }
+  .opening { padding: 65px max(30px, env(safe-area-inset-right)) 26px max(7vw, env(safe-area-inset-left)); align-items: center; }
+  .opening__body { display: grid; grid-template-columns: minmax(145px, 0.8fr) minmax(255px, 1.3fr); column-gap: 38px; width: min(710px, 91vw); max-width: none; }
+  .opening__eyebrow { grid-column: 1 / -1; font-size: 9px; margin-bottom: 16px; }
+  .opening h1 { grid-column: 1; grid-row: 2 / 5; justify-content: center; }
+  .opening h1 > span:first-child { font-size: 64px; }
+  .opening__lead { grid-column: 2; margin: 0; }
+  .opening__description { grid-column: 2; }
+  .opening__action { grid-column: 2; margin-top: 15px; }
+  .begin-button { min-height: 46px; padding-block: 10px; }
+  .opening__hint { margin-top: 9px; font-size: 14px; }
+  .opening__footnote { display: none; }
+  .poem { top: 46%; left: 7vw; width: 47vw; transform: translateY(-45%); }
+  .poem__eyebrow { font-size: 10px; }
+  .poem h2 { font-size: 27px; margin-block: 8px; }
+  .poem__verses { font-size: 16px; column-gap: 0.1em; line-height: 1.75; row-gap: 0; }
+  .poem__whisper { font-size: 9px; margin-top: 10px; }
+  .journey-footer__meta { padding-bottom: 7px; }
+  .journey-footer__meta p { font-size: 14px; }
+  .stage-scale li { padding-top: 8px; font-size: 12px; }
+}
+
+@media (orientation: landscape) and (max-width: 540px) {
+  .opening { align-items: safe center; padding-inline: var(--gutter); }
+  .opening__body { display: block; width: 100%; }
+  .opening h1 { margin-bottom: 16px; }
+  .opening__lead { margin-top: 12px; }
+  .opening__description { max-width: 100%; }
+}
+
+@media (max-height: 390px) {
+  .opening h1 > span:first-child { font-size: 54px; }
+  .opening__eyebrow { margin-bottom: 8px; }
+  .opening__description { line-height: 1.5; }
+  .opening__action { margin-top: 10px; }
+  .poem__whisper { display: none; }
+  .render-fallback { justify-content: flex-start; }
+}
+
+/* 窄而短的视口改回两行整句，为树景和底部刻度留出空间。 */
+@media (orientation: portrait) and (max-height: 620px) {
+  .opening { align-items: safe center; }
+  .poem { bottom: max(118px, calc(env(safe-area-inset-bottom) + 102px)); }
+  .poem__verses { grid-template-columns: max-content max-content; font-size: 16px; column-gap: 0.1em; }
+  .poem__whisper { display: none; }
+}
+
+@media (orientation: portrait) and (max-height: 420px) {
+  .poem { bottom: 95px; }
+  .poem__eyebrow { display: none; }
+  .poem h2 { margin-block: 6px; font-size: 24px; }
+  .journey-footer__meta { padding-bottom: 6px; }
+  .journey-footer__meta p { font-size: 14px; }
+  .stage-scale li { padding-top: 8px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
