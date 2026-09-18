@@ -1,3 +1,4 @@
+import { Eye, EyeOff, Maximize2, Minimize2, Volume2, VolumeX } from 'lucide-react';
 import { MORPHS } from '../core/presets';
 import type { Phase } from '../core/Director';
 import type { Poem } from '../data/poems';
@@ -12,12 +13,15 @@ interface OverlayProps {
   readonly coverage: number;
   readonly speed: number;
   readonly poem: Poem;
+  /** 诗句是否显示（候鸟 Eye/EyeOff 同款功能）。 */
+  readonly poemVisible: boolean;
   readonly soundOn: boolean;
-  readonly paused: boolean;
+  readonly fullscreen: boolean;
   readonly lowPrecision: boolean;
   readonly hintVisible: boolean;
+  readonly onTogglePoem: () => void;
   readonly onToggleSound: () => void;
-  readonly onTogglePause: () => void;
+  readonly onToggleFullscreen: () => void;
   readonly onJump: (index: number) => void;
 }
 
@@ -37,12 +41,14 @@ export default function Overlay({
   coverage,
   speed,
   poem,
+  poemVisible,
   soundOn,
-  paused,
+  fullscreen,
   lowPrecision,
   hintVisible,
+  onTogglePoem,
   onToggleSound,
-  onTogglePause,
+  onToggleFullscreen,
   onJump,
 }: OverlayProps) {
   return (
@@ -55,12 +61,35 @@ export default function Overlay({
         <p className="subtitle">屏幕上的生长，缓慢，也不需要被看见。</p>
       </header>
 
-      <div className="controls">
-        <button type="button" className="control" onClick={onToggleSound} aria-pressed={soundOn}>
-          声音 {soundOn ? '开' : '关'}
+      {/* 右上角控制簇：与候鸟 control-cluster 同款——三个方形图标按钮
+       * （诗句、声音、全屏），1px 墨边、毛玻璃底，hover 墨底纸字。 */}
+      <div className="control-cluster">
+        <button
+          type="button"
+          className="icon-button"
+          onClick={onTogglePoem}
+          aria-label={poemVisible ? '隐藏诗句' : '显示诗句'}
+          title={poemVisible ? '隐藏诗句' : '显示诗句'}
+        >
+          {poemVisible ? <Eye aria-hidden="true" /> : <EyeOff aria-hidden="true" />}
         </button>
-        <button type="button" className="control" onClick={onTogglePause} aria-pressed={paused}>
-          {paused ? '继续' : '暂停'}
+        <button
+          type="button"
+          className="icon-button"
+          onClick={onToggleSound}
+          aria-label={soundOn ? '关闭声音' : '开启声音'}
+          title={soundOn ? '关闭声音' : '开启声音'}
+        >
+          {soundOn ? <Volume2 aria-hidden="true" /> : <VolumeX aria-hidden="true" />}
+        </button>
+        <button
+          type="button"
+          className="icon-button"
+          onClick={onToggleFullscreen}
+          aria-label={fullscreen ? '退出全屏' : '进入全屏'}
+          title={fullscreen ? '退出全屏' : '进入全屏'}
+        >
+          {fullscreen ? <Minimize2 aria-hidden="true" /> : <Maximize2 aria-hidden="true" />}
         </button>
       </div>
 
@@ -95,7 +124,7 @@ export default function Overlay({
         ))}
       </nav>
 
-      <figure className="poem" key={`${poem.zh}`}>
+      <figure className={poemVisible ? 'poem' : 'poem poem--hidden'} key={`${poem.zh}`}>
         <blockquote className="poem__zh">{poem.zh}</blockquote>
         <figcaption className="poem__en">{poem.en}</figcaption>
       </figure>

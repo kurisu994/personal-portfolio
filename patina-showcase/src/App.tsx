@@ -12,7 +12,7 @@ import Overlay from './ui/Overlay';
 const STOPS = COLOR_STOPS.map((stop) => [stop.color[0], stop.color[1], stop.color[2], stop.at] as const);
 
 const PAPER_STRENGTH = 0.35;
-const VIGNETTE_STRENGTH = 0.3;
+const VIGNETTE_STRENGTH = 0.24;
 /** 每隔多少帧读一次覆盖率。读回是同步操作，太频繁会拖慢帧率。 */
 const COVERAGE_INTERVAL = 12;
 /** 每隔多少帧刷新一次界面文字。 */
@@ -39,11 +39,13 @@ export default function App() {
   const [failure, setFailure] = useState<string | null>(null);
   const [lowPrecision, setLowPrecision] = useState(false);
   const [hud, setHud] = useState<HudState>({ phase: 'seeding', morphIndex: 0, progress: 0, coverage: 0 });
-  const [paused, setPaused] = useState(false);
   const [soundOn, setSoundOn] = useState(false);
   const [speed, setSpeed] = useState(1);
   const [poemIndex, setPoemIndex] = useState(0);
   const [hintVisible, setHintVisible] = useState(true);
+  // 右上角控制簇（与候鸟同款）：诗句显隐、全屏。
+  const [poemVisible, setPoemVisible] = useState(true);
+  const [fullscreen, setFullscreen] = useState(false);
 
   // ── 主循环 ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -232,15 +234,17 @@ export default function App() {
     const handler = (event: KeyboardEvent) => {
       if (event.code === 'Space') {
         event.preventDefault();
+        // 暂停不改变界面，只翻 pausedRef。
         pausedRef.current = !pausedRef.current;
-        setPaused(pausedRef.current);
         return;
       }
       const index = Number.parseInt(event.key, 10);
       if (Number.isInteger(index) && index >= 1 && index <= MORPHS.length) {
         const director = directorRef.current;
         if (!director) return;
-        director.seek(morphStartTime(MORPHS[index - 1].id));
+        // 向下跳会由 Director 走「冲刷 + 重播」，避免铺满的场在稀疏
+        // 参数下整片衰减成白纸。
+        director.jump(morphStartTime(MORPHS[index - 1].id));
         setHud((current) => ({ ...current, morphIndex: index - 1 }));
       }
     };
@@ -299,6 +303,13 @@ export default function App() {
     window.clearTimeout(scribbleRef.current.holdTimer);
   }, []);
 
+  // ── 全屏（fullscreenchange 同步状态，Esc 退出时也保持一致）──────────
+  useEffect(() => {
+    const sync = () => setFullscreen(Boolean(document.fullscreenElement));
+    document.addEventListener('fullscreenchange', sync);
+    return () => document.removeEventListener('fullscreenchange', sync);
+  }, []);
+
   const toggleSound = useCallback(async () => {
     const sound = soundRef.current;
     if (!sound) return;
@@ -308,15 +319,25 @@ export default function App() {
     setSoundOn(next);
   }, []);
 
-  const togglePause = useCallback(() => {
-    pausedRef.current = !pausedRef.current;
-    setPaused(pausedRef.current);
+  const togglePoem = useCallback(() => {
+    setPoemVisible((value) => !value);
+  }, []);
+
+  const toggleFullscreen = useCallback(() => {
+    if (document.fullscreenElement) {
+      void document.exitFullscreen();
+    } else {
+      void document.documentElement.requestFullscreen().catch(() => {
+        // 无头环境等场景下全屏可能被拒绝，静默降级。
+      });
+    }
   }, []);
 
   const jumpToMorph = useCallback((index: number) => {
     const director = directorRef.current;
     if (!director) return;
-    director.seek(morphStartTime(MORPHS[index].id));
+    // 向下跳由 Director 走「冲刷 + 重播」；向上跳直接接着长。
+    director.jump(morphStartTime(MORPHS[index].id));
     setHud((current) => ({ ...current, morphIndex: index }));
   }, []);
 
@@ -353,12 +374,14 @@ export default function App() {
         coverage={hud.coverage}
         speed={speed}
         poem={POEMS[poemIndex]}
+        poemVisible={poemVisible}
         soundOn={soundOn}
-        paused={paused}
+        fullscreen={fullscreen}
         lowPrecision={lowPrecision}
         hintVisible={hintVisible}
+        onTogglePoem={togglePoem}
         onToggleSound={toggleSound}
-        onTogglePause={togglePause}
+        onToggleFullscreen={toggleFullscreen}
         onJump={jumpToMorph}
       />
     </main>

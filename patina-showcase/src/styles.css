@@ -1,11 +1,13 @@
 :root {
   color-scheme: light;
-  --paper: #f6f2e9;
+  --paper: #f7f3ec;
   --ink: #3a362c;
-  --muted: rgb(58 54 44 / 58%);
-  --faint: rgb(58 54 44 / 34%);
+  --muted: rgb(58 54 44 / 72%);
+  --faint: rgb(58 54 44 / 50%);
   --line: rgb(58 54 44 / 14%);
-  --moss: #6f7a5a;
+  --moss: #5c6e54;
+  /* 纸色光晕：让文字浮在苔藓上（与候鸟的 text-shadow 手法同源）。 */
+  --halo: 0 1px 10px rgb(247 243 236 / 82%);
   --serif: 'Noto Serif SC Variable', 'Songti SC', 'STSong', Georgia, serif;
   --sans: 'Helvetica Neue', 'PingFang SC', 'Microsoft YaHei', sans-serif;
   font-family: var(--sans);
@@ -79,6 +81,7 @@ button {
 .overlay__header {
   align-self: flex-start;
   max-width: 26ch;
+  text-shadow: var(--halo);
 }
 
 .title {
@@ -108,32 +111,37 @@ button {
   line-height: 1.7;
 }
 
-.controls {
+/* 右上角控制簇：候鸟 control-cluster 同款——icon-button 方形图标
+ * 按钮。34px、1px 墨边（35% 墨）、毛玻璃底（45% 纸），hover 墨底纸字；
+ * 图标 14px、stroke 1.6。候鸟用 color-mix + --ui-* 变量，这里取同值。 */
+.control-cluster {
   position: absolute;
   top: clamp(16px, 2.6vw, 40px);
   right: clamp(16px, 2.6vw, 40px);
   display: flex;
-  gap: 6px;
+  gap: 7px;
 }
 
-.control {
-  padding: 7px 14px;
-  color: var(--muted);
-  font-size: 12px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  transition: color 0.25s ease, border-color 0.25s ease, background-color 0.25s ease;
+.icon-button {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid rgb(58 54 44 / 35%);
+  background: rgb(247 243 236 / 45%);
+  backdrop-filter: blur(10px);
+  transition: color 0.22s ease, background-color 0.22s ease;
 }
 
-.control:hover {
-  color: var(--ink);
-  border-color: var(--faint);
-}
-
-.control[aria-pressed='true'] {
+.icon-button:hover {
   color: var(--paper);
-  background: var(--moss);
-  border-color: var(--moss);
+  background: var(--ink);
+}
+
+.icon-button svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 1.6;
 }
 
 .status {
@@ -141,6 +149,7 @@ button {
   left: clamp(16px, 2.6vw, 40px);
   bottom: clamp(16px, 2.6vw, 40px);
   width: min(30ch, 60vw);
+  text-shadow: var(--halo);
 }
 
 .status__phase {
@@ -216,6 +225,7 @@ button {
   flex-direction: column;
   gap: 2px;
   align-items: flex-end;
+  text-shadow: var(--halo);
 }
 
 .morph {
@@ -253,6 +263,7 @@ button {
   text-align: center;
   transform: translate(-50%, -50%);
   animation: poem-in 1.6s ease both;
+  text-shadow: var(--halo);
   pointer-events: none !important;
 }
 
@@ -263,7 +274,8 @@ button {
   line-height: 2;
   letter-spacing: 0.14em;
   white-space: pre-line;
-  text-shadow: 0 0 18px rgb(246 242 233 / 85%);
+  /* 中文诗句用更宽的晕开，像墨写在湿纸上。 */
+  text-shadow: 0 0 18px rgb(247 243 236 / 85%);
 }
 
 .poem__en {
@@ -273,6 +285,10 @@ button {
   line-height: 1.9;
   letter-spacing: 0.06em;
   white-space: pre-line;
+}
+
+.poem--hidden {
+  display: none;
 }
 
 @keyframes poem-in {
@@ -298,11 +314,10 @@ button {
   letter-spacing: 0.06em;
   white-space: nowrap;
   border: 1px solid var(--line);
-  border-radius: 999px;
-  background: rgb(246 242 233 / 72%);
+  background: rgb(247 243 236 / 72%);
   transform: translateX(-50%);
   transition: opacity 0.9s ease, visibility 0.9s;
-  backdrop-filter: blur(3px);
+  backdrop-filter: blur(10px);
 }
 
 .hint--hidden {

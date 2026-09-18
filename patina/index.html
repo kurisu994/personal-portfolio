@@ -9,12 +9,12 @@
     <style>
       :root {
         color-scheme: light;
-        --paper: #f6f2e9;
+        --paper: #f7f3ec;
         --ink: #3a362c;
         --muted: rgb(58 54 44 / 58%);
         --faint: rgb(58 54 44 / 34%);
         --line: rgb(58 54 44 / 14%);
-        --moss: #6f7a5a;
+        --moss: #5c6e54;
         --serif: "Songti SC", "Noto Serif CJK SC", "STSong", Georgia, serif;
         --sans: "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif;
       }
@@ -321,12 +321,17 @@
 
         // ═══ 纸墨色阶 ═══════════════════════════════════════════════════
         // 预计算成 256 项查找表：渲染内层循环里只做数组取值，不算插值。
+        // 与工程版 patina-showcase/src/core/palette.ts 同源。整条 ramp 压在
+        // 低 V 区（图案内部峰值实测只有 0.42–0.5）：0.30 之前都是纸的调子，
+        // 0.42 苔青正落在峰值上，0.56 铜锈（PATINA 的颜色，墨晕深取的路径
+        // 正面穿过这段），0.74 深苔，1.0 墨。
         const STOPS = [
-          { at: 0, color: [0xf6, 0xf2, 0xe9] },
-          { at: 0.22, color: [0xcb, 0xb8, 0x94] },
-          { at: 0.48, color: [0x6f, 0x7a, 0x5a] },
-          { at: 0.74, color: [0x46, 0x50, 0x3a] },
-          { at: 1, color: [0x3a, 0x36, 0x2c] },
+          { at: 0, color: [0xf7, 0xf3, 0xec] },
+          { at: 0.3, color: [0xd9, 0xd0, 0xba] },
+          { at: 0.42, color: [0x5c, 0x6e, 0x54] },
+          { at: 0.56, color: [0x7a, 0x66, 0x40] },
+          { at: 0.74, color: [0x46, 0x50, 0x39] },
+          { at: 1, color: [0x34, 0x30, 0x2a] },
         ];
 
         const LUT_R = new Uint8Array(256);
@@ -533,16 +538,26 @@
             const offset = index * 4;
             // 色阶查找表按 0–255 建索引，V 是 0–1 的浮点。
             const v = value <= 0 ? 0 : value >= 1 ? 255 : (value * 255 + 0.5) | 0;
-            // 廉价墨晕：与左邻居的差分当作边缘强度。
+            // 墨晕：与左邻居的差分当作边缘强度，白噪声做飞白（边缘咬合）。
             const left = index % SIM_WIDTH === 0 ? SIM_WIDTH - 1 : index - 1;
             const gradient = stateV[index] - stateV[left];
             const edge = gradient > 0 ? gradient : -gradient;
-            const shade = edge > 0.1 ? 0.72 : 1;
 
             const grainOffset = index * 3;
-            pixels[offset] = LUT_R[v] * shade + grain[grainOffset];
-            pixels[offset + 1] = LUT_G[v] * shade + grain[grainOffset + 1];
-            pixels[offset + 2] = LUT_B[v] * shade + grain[grainOffset + 2];
+            const splatter = grain[grainOffset] / 22;
+            // 墨晕不是乘暗而是往色阶深处取色：苔青的边缘先透出铜锈，
+            // 再落到深苔，像旧铜的锈从边缘漫出来。最多深取 107 档（≈0.42）。
+            const ink = edge > 0 ? Math.min(1, edge * 2.2 * (1 + 0.4 * splatter)) : 0;
+            const deep = v + ((ink * 107) | 0);
+            const di = deep > 255 ? 255 : deep;
+
+            // 纸纹只留纸底：V 低于 31 档（≈0.12）满纹，高于 77 档（≈0.30）
+            // 只剩一成六——全画面叠纹远看像扫描件，不像手作。
+            const m = v <= 31 ? 1 : v >= 77 ? 0.16 : 1 - 0.84 * (v - 31) / 46;
+
+            pixels[offset] = LUT_R[di] + grain[grainOffset] * m;
+            pixels[offset + 1] = LUT_G[di] + grain[grainOffset + 1] * m;
+            pixels[offset + 2] = LUT_B[di] + grain[grainOffset + 2] * m;
             pixels[offset + 3] = 255;
           }
 
@@ -658,7 +673,10 @@
           const rect = canvas.getBoundingClientRect();
           return {
             x: (event.clientX - rect.left) / Math.max(1, rect.width),
-            y: 1 - (event.clientY - rect.top) / Math.max(1, rect.height),
+            // Canvas 2D 的 ImageData 第 0 行渲染在画布顶部，与指针 clientY
+            // 同向，不能像工程版的 WebGL（纹理 v 轴向上）那样翻转 y——
+            // 多翻一次会让涂抹位置垂直镜像。
+            y: (event.clientY - rect.top) / Math.max(1, rect.height),
           };
         }
 

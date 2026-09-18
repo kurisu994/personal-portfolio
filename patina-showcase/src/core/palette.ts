@@ -1,9 +1,19 @@
 /**
  * 纸墨配色：把 V 场映射成「暖纸上的苔与墨」。
  *
- * 这条色阶是全片唯一决定气质的地方。低 V 是纸，中段经过一层铜锈色（旧物
- * 的痕迹），高 V 落到深苔与墨。色阶两端刻意不取纯白与纯黑，避免出现屏幕
- * 感的死白死黑。
+ * 这条色阶是全片唯一决定气质的地方。设计依据是实测的 V 值分布：图案内部
+ * V ≈ 0.3–0.5，所以 0.3–0.5 这段必须直接落在「苔青」上，而不是像旧版那样
+ * 先经过一段土黄（旧版 0.22 处的 #cbb894 让整片苔发闷发脏）。
+ *
+ * 六个停靠点的分工（V 的实测分布：图案内部峰值只有 0.42–0.5，几乎
+ * 不会更高，所以整条 ramp 要压在低 V 区，高段留给墨晕深取去走）：
+ *   0.30 之前都是纸的调子——缝隙与边缘保持干净，maze 的白缝不会发黄；
+ *   0.42 是苔青主体——正落在 V 的峰值上，斑点内部直接取到正色，
+ *   而不是纸与苔青 ramp 的中间值；
+ *   0.56 是铜锈——「PATINA」这个名字的颜色。墨晕深取的路径会正面
+ *   穿过这一段（0.42 + 0.42×edge 的中段正好落在 0.6 附近），苔青的
+ *   边缘因此透出旧铜的暖色；
+ *   0.74 以后落到深苔与墨。两端刻意不取纯白与纯黑。
  */
 
 export type Rgb = readonly [number, number, number];
@@ -13,11 +23,13 @@ function hex(value: number): Rgb {
   return [((value >> 16) & 0xff) / 255, ((value >> 8) & 0xff) / 255, (value & 0xff) / 255];
 }
 
-export const PAPER = 0xf6f2e9;
-export const INK = 0x3a362c;
-export const MOSS = 0x6f7a5a;
-export const DEEP_MOSS = 0x46503a;
-export const PATINA = 0x8a6f4a;
+export const PAPER = 0xf7f3ec;
+export const INK = 0x34302a;
+/** 纸与苔之间的浅米调，只做过渡，不抢纸色。 */
+export const PALE = 0xd9d0ba;
+export const MOSS = 0x5c6e54;
+export const PATINA = 0x7a6640;
+export const DEEP_MOSS = 0x465039;
 
 interface Stop {
   readonly at: number;
@@ -27,8 +39,9 @@ interface Stop {
 /** 按 V 升序的色阶停靠点。 */
 export const COLOR_STOPS: readonly Stop[] = [
   { at: 0.0, color: hex(PAPER) },
-  { at: 0.22, color: hex(0xcbb894) },
-  { at: 0.48, color: hex(MOSS) },
+  { at: 0.3, color: hex(PALE) },
+  { at: 0.42, color: hex(MOSS) },
+  { at: 0.56, color: hex(PATINA) },
   { at: 0.74, color: hex(DEEP_MOSS) },
   { at: 1.0, color: hex(INK) },
 ];

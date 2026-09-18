@@ -117,6 +117,10 @@ void main() {
 /**
  * 第一趟显示：V 场 → 纸墨色阶 + 边缘墨晕。
  *
+ * 墨晕的实现是「往色阶深处取色」而不是乘暗：苔青的边缘会先透出铜锈、
+ * 再落到深苔，像旧铜的锈从边缘漫出来。乘暗只会发灰，取色才有浸润感。
+ * 飞白：静态白噪声扰动墨晕强度，让苔斑边缘出现不规则的咬合颗粒。
+ *
  * 输出 a 通道存墨晕强度，供第二趟使用。
  */
 export const SHADE_FRAGMENT = `#version 300 es
@@ -124,7 +128,7 @@ precision highp float;
 
 uniform sampler2D uState;
 uniform vec2 uTexel;
-uniform vec4 uStops[5];
+uniform vec4 uStops[6];
 
 in vec2 vUv;
 out vec4 outColor;
@@ -132,7 +136,7 @@ out vec4 outColor;
 vec3 shade(float v) {
   float t = clamp(v, 0.0, 1.0);
   vec3 color = uStops[0].rgb;
-  for (int index = 1; index < 5; index += 1) {
+  for (int index = 1; index < 6; index += 1) {
     float previous = uStops[index - 1].a;
     float current = uStops[index].a;
     float local = clamp((t - previous) / max(current - previous, 1e-5), 0.0, 1.0);
@@ -140,6 +144,10 @@ vec3 shade(float v) {
     color = mix(color, uStops[index].rgb, local);
   }
   return color;
+}
+
+float hashNoise(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
 }
 
 void main() {
@@ -150,7 +158,11 @@ void main() {
   float down = texture(uState, vUv + vec2(0.0, uTexel.y)).y;
 
   float edge = clamp(length(vec2(right - left, down - up)) * 2.6, 0.0, 1.0);
-  outColor = vec4(shade(v), edge);
+  // 飞白：按模拟像素取静态白噪声，扰动墨晕的强度。
+  float splatter = hashNoise(floor(vUv * 256.0));
+  edge = clamp(edge * (0.6 + 0.8 * splatter), 0.0, 1.0);
+
+  outColor = vec4(shade(min(1.0, v + edge * 0.42)), edge);
 }
 `;
 
@@ -158,6 +170,8 @@ void main() {
  * 第二趟显示：纸纹、墨晕与暗角。
  *
  * 纸纹按屏幕像素计算而不是按模拟像素，放大后才不会糊成一片。
+ * 纸纹只属于纸：用亮度估计纸面遮罩，亮的地方（纸与浅米）满纹，
+ * 苔的图案上只留一点点颗粒——全画面叠纹远看像扫描件，不像手作。
  */
 export const DISPLAY_FRAGMENT = `#version 300 es
 precision highp float;
@@ -191,16 +205,20 @@ void main() {
   vec4 shaded = texture(uShaded, vUv);
   vec3 color = shaded.rgb;
 
-  // 边缘压深，像墨沿着纸纤维晕出去。
-  color = mix(color, color * 0.7, shaded.a * 0.85);
+  // 亮部是纸，暗部是苔。纸面遮罩决定纸纹的归属。
+  float luminance = dot(shaded.rgb, vec3(0.2126, 0.7152, 0.0722));
+  float paperMask = smoothstep(0.55, 0.8, luminance);
+
+  // 轻压暗保留体积感；墨色的浸润主要已在上游用色阶深取完成。
+  color = mix(color, color * 0.86, shaded.a * 0.9);
 
   vec2 grainUv = vUv * uResolution * 0.5;
   float grain = valueNoise(grainUv) * 0.6 + valueNoise(grainUv * 3.1) * 0.4;
-  color *= 1.0 + (grain - 0.5) * uPaper;
+  color *= 1.0 + (grain - 0.5) * uPaper * mix(0.1, 1.0, paperMask);
 
-  // 横向拉长的噪声当作纸的纤维走向。
+  // 横向拉长的噪声当作纸的纤维走向；纤维属于纸，图案上减弱。
   float fiber = valueNoise(vec2(vUv.x * uResolution.x * 0.32, vUv.y * uResolution.y * 2.6));
-  color *= 1.0 + (fiber - 0.5) * uPaper * 0.75;
+  color *= 1.0 + (fiber - 0.5) * uPaper * mix(0.22, 0.75, paperMask);
 
   float vignette = 1.0 - uVignette * pow(length(vUv - vec2(0.5)) * 1.35, 2.4);
   fragColor = vec4(color * clamp(vignette, 0.0, 1.0), 1.0);

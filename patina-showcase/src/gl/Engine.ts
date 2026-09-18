@@ -34,7 +34,7 @@ interface Target {
 }
 
 /** 色阶停靠点的 float32 打包：rgb + 位置。 */
-const STOP_COUNT = 5;
+const STOP_COUNT = 6;
 
 export class PatinaEngine {
   readonly gl: WebGL2RenderingContext;

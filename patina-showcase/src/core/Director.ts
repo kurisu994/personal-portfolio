@@ -69,6 +69,8 @@ export class Director {
   private saturationTime = 0;
   /** 本次播种相位是否已经播过种，避免每帧重复播。 */
   private sown = false;
+  /** 界面向下跳转的目标时刻：冲刷与播种走完后从这里继续。 */
+  private jumpTarget: number | null = null;
   /** 累计播下的种子数，供验收脚本统计。 */
   totalSeeds = 0;
   /** 累计完成的重生次数。 */
@@ -87,11 +89,39 @@ export class Director {
     this.sown = false;
     this.totalSeeds = 0;
     this.totalFlushes = 0;
+    this.jumpTarget = null;
   }
 
   /** 跳到漫游折线上的某个时刻，供键盘切换形态与验收脚本使用。 */
   seek(elapsedSeconds: number): void {
     this.elapsed = Math.max(0, elapsedSeconds);
+  }
+
+  /**
+   * 界面跳转（形态按钮 / 数字键）。
+   *
+   * 向上跳（目标形态覆盖率更高）与 seek 等价：场里的 V 还能当燃料，
+   * 高覆盖参数会直接接着长。
+   *
+   * 向下跳必须走「重生」：Gray-Scott 的铺满吸引子决定了满场 V 在稀疏
+   * 参数下只会整体衰减成白纸（U 已耗尽，见 presets.ts 的实测记录），
+   * 残留种子要很久才恢复，或者要等漫游走完一整圈才会冲刷重播——用户
+   * 看到的就是「空白很久」。所以向下跳先进入 flushing：水渍洗回纸面、
+   * 重新播种，再从目标形态继续，全程约 3 秒。
+   */
+  jump(elapsedSeconds: number): void {
+    const target = Math.max(0, elapsedSeconds);
+    const backward = target < this.elapsed;
+    this.elapsed = target;
+    if (!backward) return;
+
+    // 冲刷与播种结束后回到这里，而不是回到漫游起点。
+    this.jumpTarget = target;
+    this.saturationTime = 0;
+    if (this.phase === 'growing') {
+      this.phase = 'flushing';
+      this.phaseTime = 0;
+    }
   }
 
   /** 当前相位。 */
@@ -138,7 +168,9 @@ export class Director {
       if (this.phaseTime >= SEED_DURATION) {
         this.phase = 'growing';
         this.phaseTime = 0;
-        this.elapsed = 0;
+        // 向下跳转的播种完成后回到跳转目标，而不是漫游起点。
+        this.elapsed = this.jumpTarget ?? 0;
+        this.jumpTarget = null;
         this.sown = false;
       }
     } else if (this.phase === 'growing') {
@@ -152,7 +184,7 @@ export class Director {
     } else if (this.phaseTime >= FLUSH_DURATION) {
       this.phase = 'seeding';
       this.phaseTime = 0;
-      this.elapsed = 0;
+      this.elapsed = this.jumpTarget ?? 0;
       this.saturationTime = 0;
       this.sown = false;
       this.totalFlushes += 1;

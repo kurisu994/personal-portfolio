@@ -1,0 +1,2138 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#f7f4eb" />
+    <meta
+      name="description"
+      content="树之物语 · SHUZHI 简易版。零第三方依赖的单文件交互艺术：滚动驱动一粒种子破土、拔节、分叉，直到结出果实、百鸟归巢。"
+    />
+    <link rel="icon" href="data:,">
+    <title>树之物语 · SHUZHI（简易版）</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --paper: #f7f4eb;
+        --ink: #3a362c;
+        --muted: rgb(58 54 44 / 55%);
+        --faint: rgb(58 54 44 / 34%);
+        --line: rgb(58 54 44 / 16%);
+        --accent: #7a8a62;
+        --serif: "Songti SC", "Noto Serif CJK SC", "STSong", Georgia, serif;
+        --sans: "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif;
+      }
+
+      * { box-sizing: border-box; }
+
+      html { scroll-behavior: auto; }
+
+      html, body {
+        margin: 0;
+        padding: 0;
+        background: var(--paper);
+        font-family: var(--sans);
+        color: var(--ink);
+        -webkit-font-smoothing: antialiased;
+      }
+
+      /* 页面高度即时间轴：10000px，五段各 2000px */
+      body { height: 10000px; overflow-x: hidden; overscroll-behavior-y: none; }
+      body.locked { overflow: hidden; height: 100vh; }
+
+      #world {
+        position: fixed;
+        inset: 0;
+        display: block;
+        width: 100%;
+        height: 100%;
+        z-index: 0;
+        touch-action: pan-y;
+      }
+
+      /* ---------- 抬头信息 ---------- */
+      .hud {
+        position: fixed;
+        inset: 0;
+        z-index: 3;
+        padding: clamp(16px, 2.4vw, 38px);
+        pointer-events: none;
+      }
+
+      .hud > * { pointer-events: auto; }
+
+      .masthead {
+        position: absolute;
+        top: clamp(16px, 2.4vw, 38px);
+        left: clamp(16px, 2.4vw, 38px);
+        right: clamp(16px, 2.4vw, 38px);
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      .brand {
+        margin: 0;
+        font-family: var(--serif);
+        font-size: clamp(19px, 2.5vw, 30px);
+        font-weight: 500;
+        letter-spacing: 0.16em;
+        line-height: 1.1;
+      }
+
+      .brand-en {
+        display: block;
+        margin-top: 0.5em;
+        color: var(--faint);
+        font-family: var(--sans);
+        font-size: 0.34em;
+        letter-spacing: 0.5em;
+      }
+
+      .tools { display: flex; gap: 10px; }
+
+      .tool {
+        width: 38px;
+        height: 38px;
+        display: grid;
+        place-items: center;
+        padding: 0;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: rgb(255 255 255 / 34%);
+        color: var(--ink);
+        cursor: pointer;
+        transition: background 0.4s ease, border-color 0.4s ease, transform 0.3s ease;
+        backdrop-filter: blur(2px);
+      }
+
+      .tool:hover { background: rgb(255 255 255 / 70%); transform: translateY(-1px); }
+      .tool svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+      .tool .strike { opacity: 0; transition: opacity 0.3s ease; }
+      .tool[aria-pressed="false"] .strike { opacity: 1; }
+
+      /* ---------- 诗句 ---------- */
+      .poetry {
+        position: absolute;
+        left: clamp(16px, 2.4vw, 38px);
+        bottom: clamp(84px, 13vh, 150px);
+        width: min(30ch, 62vw);
+      }
+
+      .poetry-rule {
+        display: block;
+        width: 62px;
+        height: 1px;
+        margin-bottom: 20px;
+        background: currentColor;
+        opacity: 0.45;
+        transform: scaleX(0);
+        transform-origin: left center;
+        transition: transform 1.5s cubic-bezier(0.22, 0.61, 0.36, 1);
+      }
+
+      .poetry.is-visible .poetry-rule { transform: scaleX(1); }
+
+      .poetry-zh {
+        margin: 0;
+        font-family: var(--serif);
+        font-size: clamp(14px, 1.5vw, 19px);
+        line-height: 2.1;
+        letter-spacing: 0.16em;
+      }
+
+      .poetry-zh .char {
+        display: inline-block;
+        opacity: 0;
+        transform: translateY(7px);
+        transition: opacity 1.05s ease, transform 1.05s cubic-bezier(0.22, 0.61, 0.36, 1);
+      }
+
+      .poetry-zh .char.punct { opacity: 0 !important; transition: opacity 0.9s ease; }
+
+      .poetry.is-visible .poetry-zh .char { opacity: 1 !important; transform: none; }
+
+      .poetry-en {
+        margin: 0.9em 0 0;
+        max-width: 30ch;
+        color: var(--muted);
+        font-size: clamp(10px, 1vw, 12px);
+        letter-spacing: 0.06em;
+        line-height: 1.9;
+        opacity: 0;
+        transform: translateY(6px);
+        transition: opacity 1.3s ease, transform 1.3s ease;
+      }
+
+      .poetry.is-visible .poetry-en { opacity: 1; transform: none; }
+
+      /* ---------- 阶段编年 ---------- */
+      .chronicle {
+        position: absolute;
+        right: clamp(16px, 2.4vw, 38px);
+        bottom: clamp(16px, 2.4vw, 38px);
+        text-align: right;
+      }
+
+      .chronicle-stage {
+        display: flex;
+        align-items: baseline;
+        justify-content: flex-end;
+        gap: 10px;
+        font-family: var(--serif);
+        font-size: clamp(13px, 1.4vw, 17px);
+        letter-spacing: 0.18em;
+      }
+
+      .chronicle-stage span:first-child { color: var(--faint); font-size: 0.78em; }
+
+      .chronicle-track {
+        width: min(220px, 42vw);
+        height: 1px;
+        margin-top: 12px;
+        margin-left: auto;
+        background: var(--line);
+      }
+
+      .chronicle-bar {
+        display: block;
+        width: 100%;
+        height: 100%;
+        background: var(--accent);
+        transform: scaleX(0);
+        transform-origin: left center;
+      }
+
+      /* ---------- 滚动提示 ---------- */
+      .scroll-hint {
+        position: absolute;
+        left: 50%;
+        bottom: clamp(18px, 3vh, 34px);
+        transform: translateX(-50%);
+        color: var(--muted);
+        font-size: 11px;
+        letter-spacing: 0.42em;
+        transition: opacity 0.8s ease;
+      }
+
+      .scroll-hint i {
+        display: block;
+        width: 1px;
+        height: 26px;
+        margin: 10px auto 0;
+        background: linear-gradient(currentColor, transparent);
+        animation: hint 2.6s ease-in-out infinite;
+      }
+
+      @keyframes hint {
+        0%, 100% { opacity: 0.25; transform: scaleY(0.6); }
+        50% { opacity: 1; transform: scaleY(1); }
+      }
+
+      /* ---------- 开场 ---------- */
+      .intro {
+        position: fixed;
+        inset: 0;
+        z-index: 6;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        background: radial-gradient(120% 90% at 50% 40%, rgb(247 244 235 / 62%) 0%, rgb(247 244 235 / 92%) 70%, var(--paper) 100%);
+        transition: opacity 1.5s ease;
+      }
+
+      .intro.gone { opacity: 0; pointer-events: none; }
+
+      .intro-inner { width: min(560px, 88vw); text-align: center; }
+
+      .intro-kicker {
+        color: var(--faint);
+        font-family: var(--serif);
+        font-size: clamp(10px, 1.1vw, 12px);
+        letter-spacing: 0.34em;
+      }
+
+      .intro-title {
+        margin: 0.55em 0 0;
+        font-family: var(--serif);
+        font-size: clamp(34px, 6.4vw, 68px);
+        font-weight: 500;
+        letter-spacing: 0.2em;
+        text-indent: 0.2em;
+      }
+
+      .intro-en {
+        margin-top: 0.8em;
+        color: var(--faint);
+        font-size: clamp(10px, 1.1vw, 12px);
+        letter-spacing: 0.86em;
+        text-indent: 0.86em;
+      }
+
+      .intro-copy {
+        margin: 2.2em 0 0;
+        color: var(--muted);
+        font-family: var(--serif);
+        font-size: clamp(12px, 1.3vw, 15px);
+        line-height: 2.1;
+        letter-spacing: 0.08em;
+      }
+
+      .intro-btn {
+        margin-top: 2.6em;
+        padding: 13px 30px;
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+        border: 1px solid rgb(58 54 44 / 30%);
+        border-radius: 999px;
+        background: rgb(255 255 255 / 42%);
+        color: var(--ink);
+        font-family: var(--serif);
+        font-size: clamp(13px, 1.4vw, 16px);
+        letter-spacing: 0.24em;
+        text-indent: 0.24em;
+        cursor: pointer;
+        transition: background 0.5s ease, letter-spacing 0.5s ease, border-color 0.5s ease;
+      }
+
+      .intro-btn:hover { background: rgb(255 255 255 / 88%); letter-spacing: 0.32em; border-color: rgb(58 54 44 / 52%); }
+      .intro-btn .arrow { transition: transform 0.5s ease; }
+      .intro-btn:hover .arrow { transform: translateX(4px); }
+
+      .intro-note { margin-top: 1.8em; color: var(--faint); font-size: 11px; letter-spacing: 0.3em; }
+
+      @media (max-width: 620px) {
+        .poetry { width: 74vw; bottom: clamp(96px, 20vh, 200px); }
+        .scroll-hint { display: none; }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .scroll-hint i { animation: none; }
+        .poetry-zh .char, .poetry-en, .poetry-rule { transition-duration: 0.01s !important; }
+      }
+    </style>
+  </head>
+  <body class="locked">
+    <canvas id="world" aria-label="滚动驱动的程序化大树：从种子破土、拔节、分叉到结果与飞鸟归巢"></canvas>
+
+    <div class="hud" id="hud">
+      <header class="masthead">
+        <h1 class="brand">树之物语<span class="brand-en">SHUZHI</span></h1>
+        <div class="tools">
+          <button class="tool" id="audioBtn" type="button" aria-pressed="false" title="开启 / 关闭声音（M）" aria-label="声音开关">
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              <path d="M3 8h3l4-4v12l-4-4H3Z" />
+              <path d="M13 7q3 3 0 6m2-9q6 6 0 12" />
+              <path class="strike" d="m2 2 16 16" />
+            </svg>
+          </button>
+          <button class="tool" id="fullBtn" type="button" title="切换全屏（F）" aria-label="切换全屏">
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              <path d="M3 8V3h5m4 0h5v5M3 12v5h5m4 0h5v-5" />
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      <section class="poetry" id="poetry" aria-live="polite" aria-label="生长短诗">
+        <i class="poetry-rule" aria-hidden="true"></i>
+        <p class="poetry-zh" id="poemZh"></p>
+        <p class="poetry-en" id="poemEn"></p>
+      </section>
+
+      <div class="scroll-hint" id="scrollHint">向下滚动<i></i></div>
+
+      <footer class="chronicle">
+        <div class="chronicle-stage">
+          <span id="stageIndex">01</span>
+          <span id="stageName">胚芽 / WARM</span>
+        </div>
+        <div class="chronicle-track"><i class="chronicle-bar" id="chronicleBar"></i></div>
+      </footer>
+    </div>
+
+    <div class="intro" id="intro">
+      <div class="intro-inner">
+        <div class="intro-kicker">一 粒 微 尘 里 ， 大 千 正 呼 吸</div>
+        <h2 class="intro-title">树之物语</h2>
+        <div class="intro-en">SHUZHI</div>
+        <p class="intro-copy">向下滚动，让一粒种子破土、拔节、分叉，<br />直到它结出果实，把飞鸟召回家。</p>
+        <button class="intro-btn" id="beginBtn" type="button"><span>落子生根</span><span class="arrow">→</span></button>
+        <div class="intro-note">滚 动 即 是 时 间</div>
+      </div>
+    </div>
+
+    <script>
+      (() => {
+        'use strict';
+
+        /* ==========================================================================
+           0 · 基础工具
+           ========================================================================== */
+
+        const TAU = Math.PI * 2;
+        const clamp = (v, a = 0, b = 1) => (v < a ? a : v > b ? b : v);
+        const lerp = (a, b, t) => a + (b - a) * t;
+        const smoothstep = (a, b, x) => { const t = clamp((x - a) / (b - a)); return t * t * (3 - 2 * t); };
+        const rgb = (c) => `rgb(${c[0] | 0},${c[1] | 0},${c[2] | 0})`;
+        const rgba = (c, a) => `rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},${clamp(a, 0, 1).toFixed(3)})`;
+
+        const $ = (id) => document.getElementById(id);
+        const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+        /** 确定性随机数发生器，保证同一种子长出同一棵树 */
+        function mulberry32(a) {
+          return function () {
+            a |= 0; a = (a + 0x6d2b79f5) | 0;
+            let t = Math.imul(a ^ (a >>> 15), 1 | a);
+            t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+            return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+          };
+        }
+
+        /**
+         * 四阶贝塞尔缓动求值器（牛顿迭代反解 x → t）。
+         * 气候过渡与生长曲线都用它，保证「绝不硬切」。
+         */
+        function bezierEase(x1, y1, x2, y2) {
+          const cx = 3 * x1, bx = 3 * (x2 - x1) - cx, ax = 1 - cx - bx;
+          const cy = 3 * y1, by = 3 * (y2 - y1) - cy, ay = 1 - cy - by;
+          const fx = (t) => ((ax * t + bx) * t + cx) * t;
+          const fy = (t) => ((ay * t + by) * t + cy) * t;
+          const dfx = (t) => (3 * ax * t + 2 * bx) * t + cx;
+          return (x) => {
+            x = clamp(x);
+            let t = x;
+            for (let i = 0; i < 7; i++) {
+              const e = fx(t) - x;
+              if (Math.abs(e) < 1e-5) break;
+              const d = dfx(t);
+              if (Math.abs(d) < 1e-6) break;
+              t = clamp(t - e / d);
+            }
+            return fy(t);
+          };
+        }
+
+        const climateEase = bezierEase(0.65, 0, 0.35, 1);   // 气候：对称的 4 阶贝塞尔
+        const growthEase = bezierEase(0.55, 0.03, 0.28, 1);  // 生长：慢起 · 陡中 · 缓收
+
+        /** 自定义 backOut 弹簧缓动：用于叶片展开与果实挂枝 */
+        const backOut = (t, s = 1.70158) => { t = clamp(t) - 1; return t * t * ((s + 1) * t + s) + 1; };
+
+        /** 二次贝塞尔求值与切线 */
+        const quadAt = (P, t) => {
+          const u = 1 - t;
+          return { x: u * u * P[0] + 2 * u * t * P[2] + t * t * P[4], y: u * u * P[1] + 2 * u * t * P[3] + t * t * P[5] };
+        };
+        const quadTan = (P, t) => {
+          const u = 1 - t;
+          return { x: 2 * (u * (P[2] - P[0]) + t * (P[4] - P[2])), y: 2 * (u * (P[3] - P[1]) + t * (P[5] - P[3])) };
+        };
+        /** de Casteljau：取二次贝塞尔前 t 段 */
+        const subQuad = (P, t) => {
+          const ax = lerp(P[0], P[2], t), ay = lerp(P[1], P[3], t);
+          const bx = lerp(P[2], P[4], t), by = lerp(P[3], P[5], t);
+          return [P[0], P[1], ax, ay, lerp(ax, bx, t), lerp(ay, by, t)];
+        };
+
+        /** One Euro 滤波：抑制鼠标速度抖动，同时保留快速响应 */
+        function oneEuroFilter(minCutoff = 1.1, beta = 0.012, dCutoff = 1.0) {
+          let xPrev = null, dxPrev = 0;
+          const alpha = (cut, dt) => { const tau = 1 / (TAU * cut); return 1 / (1 + tau / dt); };
+          return (x, dt) => {
+            dt = Math.max(dt, 1 / 240);
+            if (xPrev === null) { xPrev = x; return x; }
+            const dx = (x - xPrev) / dt;
+            const aD = alpha(dCutoff, dt);
+            const dxHat = aD * dx + (1 - aD) * dxPrev;
+            const cut = minCutoff + beta * Math.abs(dxHat);
+            const a = alpha(cut, dt);
+            const xHat = a * x + (1 - a) * xPrev;
+            xPrev = xHat; dxPrev = dxHat;
+            return xHat;
+          };
+        }
+
+        /* ==========================================================================
+           1 · 五段生命气候
+           每段提供一整套绘制色；相邻两段之间用 4 阶贝塞尔做连续插值，绝不硬切。
+           ========================================================================== */
+
+        const PALETTES = [
+          {
+            // 01 胚芽 · 泥土暗啡与温润淡黄，种子在黑暗中呼吸
+            name: '胚芽', en: 'WARM',
+            sky: [[72, 54, 40], [104, 82, 56], [58, 42, 32]],
+            ground: [[86, 65, 47], [50, 36, 26]],
+            sun: [232, 198, 130], sunPos: [0.5, 0.44], sunPow: 0.5,
+            trunk: [92, 72, 50], trunkLit: [176, 152, 108],
+            leaf: [[146, 128, 86], [174, 152, 106], [124, 108, 74]],
+            fruit: [217, 83, 79], bird: [226, 206, 168], dust: [230, 206, 152],
+            ink: [242, 230, 208], accent: [206, 172, 116],
+            vignette: [24, 16, 10], vignetteStrength: 0.52,
+          },
+          {
+            // 02 破土 · 迷雾青绿与晨曦微光
+            name: '破土', en: 'MIST',
+            sky: [[152, 178, 168], [202, 214, 196], [232, 236, 222]],
+            ground: [[120, 114, 90], [86, 82, 64]],
+            sun: [255, 248, 222], sunPos: [0.74, 0.2], sunPow: 0.62,
+            trunk: [88, 82, 62], trunkLit: [126, 120, 88],
+            leaf: [[124, 156, 106], [96, 130, 88], [158, 182, 124]],
+            fruit: [217, 83, 79], bird: [110, 112, 100], dust: [214, 228, 196],
+            ink: [56, 52, 44], accent: [116, 148, 112],
+            vignette: [72, 86, 76], vignetteStrength: 0.26,
+          },
+          {
+            // 03 拔节 · 晚霞橙粉与暮色紫罗兰，树干逆光成剪影
+            name: '拔节', en: 'DUSK',
+            sky: [[104, 86, 140], [206, 142, 132], [242, 196, 160]],
+            ground: [[96, 78, 86], [62, 50, 60]],
+            sun: [255, 208, 152], sunPos: [0.3, 0.54], sunPow: 0.7,
+            trunk: [74, 58, 68], trunkLit: [124, 96, 100],
+            leaf: [[138, 106, 118], [106, 86, 106], [174, 136, 130]],
+            fruit: [217, 83, 79], bird: [70, 58, 72], dust: [246, 208, 172],
+            ink: [250, 242, 234], accent: [190, 132, 120],
+            vignette: [52, 40, 62], vignetteStrength: 0.4,
+          },
+          {
+            // 04 繁茂 · 盛夏浓绿与翠蓝，二级三级枝如网蔓延
+            name: '繁茂', en: 'FOREST',
+            sky: [[92, 152, 152], [152, 190, 170], [206, 218, 178]],
+            ground: [[98, 118, 78], [64, 84, 56]],
+            sun: [250, 252, 228], sunPos: [0.62, 0.14], sunPow: 0.55,
+            trunk: [76, 68, 52], trunkLit: [112, 106, 78],
+            leaf: [[94, 134, 72], [62, 104, 62], [144, 170, 92]],
+            fruit: [217, 83, 79], bird: [84, 88, 80], dust: [196, 214, 150],
+            ink: [48, 56, 46], accent: [88, 130, 86],
+            vignette: [44, 66, 58], vignetteStrength: 0.32,
+          },
+          {
+            // 05 圆满 · 暖金溢光与天青如洗，果实与鸟巢共生
+            name: '圆满', en: 'RECOMPENSE',
+            sky: [[248, 232, 186], [230, 214, 182], [176, 208, 214]],
+            ground: [[178, 184, 126], [134, 150, 102]],
+            sun: [255, 246, 198], sunPos: [0.5, 0.17], sunPow: 0.68,
+            trunk: [94, 78, 56], trunkLit: [136, 116, 78],
+            leaf: [[134, 160, 92], [104, 138, 84], [180, 192, 108]],
+            fruit: [217, 83, 79], bird: [122, 88, 72], dust: [250, 224, 168],
+            ink: [56, 48, 36], accent: [186, 140, 74],
+            vignette: [120, 104, 68], vignetteStrength: 0.24,
+          },
+        ];
+
+        /** 递归混合任意嵌套的数字/颜色结构 */
+        function blendAny(a, b, t) {
+          if (typeof a === 'number') return a + (b - a) * t;
+          if (Array.isArray(a)) return a.map((v, i) => blendAny(v, b[i], t));
+          return t < 0.5 ? a : b;
+        }
+
+        const climateCache = [];
+        /** 滚动进度 → 当前气候（相邻阶段间连续插值） */
+        function climateAt(p) {
+          const key = Math.round(clamp(p) * 1000);
+          if (climateCache[key]) return climateCache[key];
+          // 每段气候在前 55% 保持自身气质，后 45% 用 4 阶贝塞尔过渡到下一段
+          const x = clamp(p) * 4.999999;
+          const i = Math.min(4, Math.floor(x));
+          const j = Math.min(4, i + 1);
+          const t = climateEase(clamp((x - i - 0.55) / 0.45));
+          const C = blendAny(PALETTES[i], PALETTES[j], t);
+          C.index = i;
+          C.next = j;
+          C.local = x - i;
+          climateCache[key] = C;
+          return C;
+        }
+
+        const STAGE_COUNT = 5;
+
+        /** 五段禅意短诗 */
+        const POEMS = [
+          { zh: '一粒微尘里，大千正呼吸。莫道幽冥暗，开源待此契。', en: 'In one speck of dust the whole world breathes. Call not the dark a prison — the beginning waits here.' },
+          { zh: '苔痕破冷土，新绿见天心。不见风雷动，乾坤一线深。', en: 'Moss splits the cold earth; new green meets heaven\u2019s heart. No thunder is seen, yet in one line lies the depth of the world.' },
+          { zh: '虚心横乱云，修直向晚晴。一身承风雨，冷暖不须惊。', en: 'Hollow at heart, it crosses wild clouds, straight toward the evening clear. One body bears all weather — no shock at cold or warm.' },
+          { zh: '万叶共一音，婆娑弄清影。坐对荣枯事，方知物我静。', en: 'Ten thousand leaves, one voice, dancing their clear shadows. Sitting with flourish and fading, things and I grow still.' },
+          { zh: '红熟惊造化，鸟落旧枝安。因缘归一木，天地此心宽。', en: 'Ripe red startles creation; a bird settles, at home on the old branch. All cause returns to one tree, and the heart widens to earth and sky.' },
+        ];
+
+        /* ==========================================================================
+           2 · 画布、视口与状态
+           ========================================================================== */
+
+        const canvas = $('world');
+        const ctx = canvas.getContext('2d', { alpha: false });
+        const view = { w: 0, h: 0, dpr: 1, fit: 1 };
+
+        const SCROLL_HEIGHT = 10000;   // 时间轴总长，五段各 2000px
+        const SEED = (crypto.getRandomValues(new Uint32Array(1))[0] || 20260918) >>> 0;
+
+        const state = {
+          started: false,
+          locked: true,
+          targetP: 0,     // 原生滚动读到的目标进度
+          p: 0,           // 平滑跟随后的进度（驱动一切生长）
+          time: 0,
+          paused: false,
+          soundOn: false,
+          lowPower: false,
+        };
+
+        /* ==========================================================================
+           3 · 纸本水彩纹理（程序化生成，像素级操作）
+           ========================================================================== */
+
+        const paper = document.createElement('canvas');
+        const paperCtx = paper.getContext('2d', { willReadFrequently: true });
+
+        /**
+         * 生成一张「粗糙水彩纸」：颗粒噪点 + 短纤维 + 大块水迹晕染 + 水渍边缘圆环。
+         * 只生成一次，之后每帧以 overlay 叠在天空之上。
+         */
+        function buildPaperTexture(w, h) {
+          const W = Math.max(2, Math.round(w));
+          const H = Math.max(2, Math.round(h));
+          paper.width = W;
+          paper.height = H;
+
+          // ① 颗粒噪点：像素级写入，模拟纸纤维的漫反射
+          const img = paperCtx.createImageData(W, H);
+          const d = img.data;
+          for (let i = 0; i < d.length; i += 4) {
+            const v = 128 + (Math.random() - 0.5) * 96;
+            d[i] = d[i + 1] = d[i + 2] = v;
+            d[i + 3] = 20 + Math.random() * 30;
+          }
+          paperCtx.putImageData(img, 0, 0);
+
+          // ② 短纤维：随机方向的细线，营造手抄纸的走向
+          paperCtx.lineCap = 'round';
+          for (let i = 0; i < Math.round((W * H) / 2600); i++) {
+            const x = Math.random() * W, y = Math.random() * H;
+            const a = Math.random() * TAU, l = 4 + Math.random() * 22;
+            paperCtx.strokeStyle = `rgba(${90 + Math.random() * 80 | 0},${84 + Math.random() * 70 | 0},${70 + Math.random() * 60 | 0},${(0.02 + Math.random() * 0.05).toFixed(3)})`;
+            paperCtx.lineWidth = 0.5 + Math.random() * 0.9;
+            paperCtx.beginPath();
+            paperCtx.moveTo(x, y);
+            paperCtx.quadraticCurveTo(x + Math.cos(a) * l * 0.5, y + Math.sin(a) * l * 0.5 + (Math.random() - 0.5) * 3, x + Math.cos(a) * l, y + Math.sin(a) * l);
+            paperCtx.stroke();
+          }
+
+          // ③ 水迹晕染：几处大而淡的色斑，像颜料被水推开
+          const wash = [[0.24, 0.3, 0.5], [0.72, 0.24, 0.42], [0.5, 0.78, 0.36], [0.16, 0.72, 0.28], [0.86, 0.66, 0.3]];
+          for (const [px, py, pr] of wash) {
+            const cx = px * W, cy = py * H, r = pr * Math.max(W, H) * 0.55;
+            const g = paperCtx.createRadialGradient(cx, cy, 0, cx, cy, r);
+            const tint = Math.random() < 0.5 ? [150, 138, 112] : [136, 146, 128];
+            g.addColorStop(0, rgba(tint, 0.05));
+            g.addColorStop(0.62, rgba(tint, 0.028));
+            g.addColorStop(1, rgba(tint, 0));
+            paperCtx.fillStyle = g;
+            paperCtx.beginPath();
+            paperCtx.arc(cx, cy, r, 0, TAU);
+            paperCtx.fill();
+          }
+
+          // ④ 水渍边缘：几圈不规则的浅色环，模拟干涸后的沉淀线
+          for (let i = 0; i < 5; i++) {
+            const cx = Math.random() * W, cy = Math.random() * H;
+            const r = (0.08 + Math.random() * 0.2) * Math.max(W, H);
+            paperCtx.strokeStyle = `rgba(126,116,96,${(0.018 + Math.random() * 0.026).toFixed(3)})`;
+            paperCtx.lineWidth = 0.8 + Math.random() * 1.6;
+            paperCtx.beginPath();
+            const steps = 40;
+            for (let k = 0; k <= steps; k++) {
+              const a = (k / steps) * TAU;
+              const wob = 1 + Math.sin(a * 3 + i) * 0.06 + Math.sin(a * 7 - i * 2) * 0.03;
+              const x = cx + Math.cos(a) * r * wob;
+              const y = cy + Math.sin(a) * r * wob * 0.86;
+              if (k === 0) paperCtx.moveTo(x, y); else paperCtx.lineTo(x, y);
+            }
+            paperCtx.stroke();
+          }
+        }
+
+        /* ==========================================================================
+           4 · 树的骨架：纯数学分形 + 手工瑕疵
+           ========================================================================== */
+
+        const TREE = buildTree();
+
+        function makeSeg(parent, x0, y0, ang, len, w, depth, t0, dur, phase, bend, flex, root, attachT = 1.0) {
+          const ex = x0 + Math.cos(ang) * len;
+          const ey = y0 + Math.sin(ang) * len;
+          const vx = Math.cos(ang + Math.PI / 2);
+          const vy = Math.sin(ang + Math.PI / 2);
+          // 手绘感：sin(y) + sin(3y) 叠加非规则噪声，控制点因此偏离几何中线。
+          // 偏移幅度必须远小于段长，否则轮廓会自交成折纸碎片。
+          const wob = Math.sin(y0 * 0.021 + phase) * 0.6 + Math.sin(y0 * 0.063 + phase * 1.7) * 0.3 + bend * 0.7;
+          const cx = (x0 + ex) * 0.5 + vx * len * wob * 0.105;
+          const cy = (y0 + ey) * 0.5 + vy * len * wob * 0.105;
+          return {
+            parent, x0, y0, cx, cy, x1: ex, y1: ey, w, depth, t0, dur, phase, ang, len, flex, root: !!root,
+            attachT, points: [x0, y0, cx, cy, ex, ey],
+          };
+        }
+
+        function buildTree() {
+          const rnd = mulberry32(SEED);
+          const segs = [];
+          const leaves = [];
+          const fruits = [];
+          const trunkTop = { x: 0, y: 0 };
+          let minY = 0, maxX = 1;
+
+          const push = (seg) => { segs.push(seg); return segs.length - 1; };
+
+          // ---- 主干：四节，逐节由滚动依次抽出 ----
+          let bx = 0, by = 0, bang = -Math.PI / 2;
+          const TRUNK = [
+            { len: 178, w: 76 },
+            { len: 162, w: 63 },
+            { len: 148, w: 52 },
+            { len: 132, w: 42 },
+          ];
+          let prev = -1;
+          TRUNK.forEach((t, i) => {
+            bang += (rnd() - 0.5) * 0.11;
+            const seg = makeSeg(prev, bx, by, bang, t.len, t.w, 0, 0.2 + i * 0.062, 0.16, rnd() * TAU, (rnd() - 0.5) * 0.8, 0.02 + i * 0.012, false);
+            prev = push(seg);
+            bx = seg.x1; by = seg.y1;
+            trunkTop.x = bx; trunkTop.y = by;
+          });
+          const trunkIndices = segs.map((_, i) => i);
+
+          // 叶簇生成器：每个节点生出 2~4 片水彩叶，簇拥成伞冠
+          const addLeafCluster = (segIdx, t, count, rnd2) => {
+            if (leaves.length > 720) return;
+            const seg = segs[segIdx];
+            for (let k = 0; k < count; k++) {
+              leaves.push({
+                seg: segIdx,
+                t: clamp(t + (rnd2() - 0.5) * 0.16),
+                ang: seg.ang + (rnd2() - 0.5) * 2.2 + (k % 2 === 0 ? -0.65 : 0.65),
+                size: 13 + rnd2() * 14 + (4 - Math.min(4, seg.depth)) * 1.6,
+                t0: clamp(seg.t0 + seg.dur * 0.28 + rnd2() * 0.18, 0, 0.855),
+                dur: 0.055 + rnd2() * 0.04,
+                phase: rnd2() * TAU,
+                tone: rnd2(),
+              });
+            }
+          };
+
+          function spawn(sx, sy, ang, len, w, depth, t0, dur, parent, attachT = 1.0) {
+            const seg = makeSeg(parent, sx, sy, ang, len, w, depth, t0, dur, rnd() * TAU, (rnd() - 0.5) * 0.9, 0.03 + depth * 0.14, false, attachT);
+            const idx = push(seg);
+            const tip = { x: seg.x1, y: seg.y1 };
+            minY = Math.min(minY, tip.y);
+            maxX = Math.max(maxX, Math.abs(tip.x));
+
+            if (depth >= 4 || len < 15) {
+              // 末梢：繁密叶簇包裹枝头
+              addLeafCluster(idx, 0.85, 3 + Math.floor(rnd() * 2), rnd);
+              addLeafCluster(idx, 0.48, 2, rnd);
+              return;
+            }
+
+            const n = depth === 1 ? (rnd() < 0.45 ? 3 : 2) : rnd() < 0.3 ? 3 : 2;
+            for (let i = 0; i < n; i++) {
+              // 主轴延续 + 侧枝分叉：有了主次，树才不像一把扇子
+              const main = i === 0 && rnd() < 0.55;
+              let dir, spread, lf;
+              if (main) {
+                dir = (rnd() - 0.5) * 0.5;
+                spread = 0.16;
+                lf = 0.84 + rnd() * 0.12;
+              } else {
+                const kk = i - (main ? 1 : 0);
+                dir = (i % 2 === 0 ? -1 : 1) * (1 + Math.floor(kk / 2) * 0.45);
+                spread = 0.5 + rnd() * 0.34;
+                lf = 0.6 + rnd() * 0.18;
+              }
+              const na = ang + dir * spread + (rnd() - 0.5) * 0.12;
+              const nl = len * lf;
+              const nt0 = Math.min(0.845, t0 + dur * (0.5 + rnd() * 0.35));
+              const ndur = dur * (0.84 - depth * 0.035);
+              spawn(seg.x1, seg.y1, na, nl, w * (0.68 + rnd() * 0.08), depth + 1, nt0, ndur, idx);
+            }
+
+            // 中段挂叶，让树冠不只长在末梢
+            if (depth >= 2 && rnd() < 0.8) addLeafCluster(idx, 0.3 + rnd() * 0.55, 2, rnd);
+          }
+
+          // 主干各节发出的侧枝（带随机相位延迟）：低位外展、高位收敛，带一点重力下垂
+          for (let i = 1; i < trunkIndices.length; i++) {
+            const seg = segs[trunkIndices[i]];
+            const hi = i / (trunkIndices.length - 1);
+            const sides = i <= 1 ? 2 : rnd() < 0.5 ? 2 : 3;
+            for (let s = 0; s < sides; s++) {
+              const side = s % 2 === 0 ? -1 : 1;
+              const at = 0.28 + rnd() * 0.62;
+              const P = [seg.x0, seg.y0, seg.cx, seg.cy, seg.x1, seg.y1];
+              const base = quadAt(P, at);
+              const out = lerp(0.98, 0.44, hi) + rnd() * 0.2;
+              const a = seg.ang + side * out;
+              const len0 = (232 + rnd() * 108) * lerp(1.14, 0.82, hi);
+              spawn(base.x, base.y, a, len0, seg.w * 0.62, 1, Math.min(0.845, seg.t0 + seg.dur * 0.62 + rnd() * 0.045), 0.115, trunkIndices[i], at);
+            }
+          }
+
+          // 主干顶端三主枝
+          for (let i = 0; i < 3; i++) {
+            const a = -Math.PI / 2 + (i - 1) * (0.34 + rnd() * 0.16) + (rnd() - 0.5) * 0.12;
+            spawn(trunkTop.x, trunkTop.y, a, 186 + rnd() * 62, 27, 1, 0.47 + i * 0.012, 0.12, prev);
+          }
+
+          // ---- 根系：从种子向下蔓延，破土前的主角 ----
+          const roots = [];
+          for (let i = 0; i < 5; i++) {
+            const a = Math.PI / 2 + (i - 2) * 0.36 + (rnd() - 0.5) * 0.14;
+            let rx = 0, ry = 0, ra = a, rp = -1;
+            const chain = 2 + Math.floor(rnd() * 2);
+            for (let k = 0; k < chain; k++) {
+              const seg = makeSeg(rp, rx, ry, ra + (rnd() - 0.5) * 0.3, (78 - k * 16) * (0.8 + rnd() * 0.4), Math.max(4, 21 - k * 7 - i), 1, 0.012 + i * 0.016 + k * 0.028, 0.15, rnd() * TAU, (rnd() - 0.5) * 1.3, 0.05, true);
+              rp = push(seg);
+              roots.push(rp);
+              rx = seg.x1; ry = seg.y1; ra = seg.ang + (rnd() - 0.5) * 0.5;
+            }
+          }
+
+          // ---- 果实：挑选三、四级枝的末梢，挂 30-50 枚 ----
+          const spots = [];
+          for (let i = 0; i < segs.length; i++) {
+            const s = segs[i];
+            if (!s.root && s.depth >= 3) spots.push(i);
+          }
+          for (let i = spots.length - 1; i > 0; i--) {
+            const j = Math.floor(rnd() * (i + 1));
+            const t = spots[i]; spots[i] = spots[j]; spots[j] = t;
+          }
+          const fruitCount = Math.min(42, spots.length);
+          for (let i = 0; i < fruitCount; i++) {
+            const segIdx = spots[i];
+            fruits.push({
+              seg: segIdx,
+              t: 0.42 + rnd() * 0.54,
+              size: 14 + rnd() * 7,
+              t0: 0.85 + rnd() * 0.05,
+              phase: rnd() * TAU,
+              tone: rnd(),
+            });
+          }
+
+          const forkPoint = { x: segs[trunkIndices[2]].x1, y: segs[trunkIndices[2]].y1 };
+          return { segs, leaves, fruits, roots, trunkTop, minY, maxX, fork: forkPoint };
+        }
+
+        /* ==========================================================================
+           5 · 风场：鼠标速度 → 弯曲位移（One Euro 滤波 + 阻尼缓动）
+           ========================================================================== */
+
+        const wind = {
+          rawX: 0, rawY: 0, x: 0, y: 0, gust: 0,
+          fx: oneEuroFilter(1.0, 0.02),
+          fy: oneEuroFilter(1.0, 0.02),
+          mx: 0, my: 0, lastMx: 0, lastMy: 0, hasPointer: false,
+        };
+
+        /** 采样指针位置，折算成风力原始值 */
+        function feedWind(x, y, dt) {
+          if (!wind.hasPointer) { wind.lastMx = x; wind.lastMy = y; wind.hasPointer = true; }
+          const vx = (x - wind.lastMx) / Math.max(dt, 1 / 240);
+          const vy = (y - wind.lastMy) / Math.max(dt, 1 / 240);
+          wind.lastMx = x; wind.lastMy = y;
+          wind.rawX = clamp(vx * 0.0009, -1, 1);
+          wind.rawY = clamp(vy * 0.0006, -1, 1);
+          wind.mx = x / view.w;
+          wind.my = y / view.h;
+          wind.gust = Math.min(1, wind.gust + Math.min(0.4, Math.hypot(vx, vy) * 0.00022));
+        }
+
+        /** 每帧更新风力：One Euro 平滑 + 指数回落 */
+        function updateWind(dt) {
+          wind.x = wind.fx(wind.rawX, dt);
+          wind.y = wind.fy(wind.rawY, dt);
+          const decay = Math.pow(0.06, dt);
+          wind.rawX *= decay;
+          wind.rawY *= decay;
+          wind.gust *= Math.pow(0.25, dt);
+        }
+
+        /** 按层级累积弯曲偏移，子段起点动态锚定在父段曲线上，浑然一体 */
+        function computeSway(px, py, t) {
+          const segs = TREE.segs;
+          for (let i = 0; i < segs.length; i++) {
+            const seg = segs[i];
+            let baseX, baseY;
+            if (seg.parent >= 0) {
+              const pSeg = segs[seg.parent];
+              const pPt = quadAt(pSeg.points, seg.attachT);
+              baseX = pPt.x; baseY = pPt.y;
+            } else {
+              baseX = seg.x0; baseY = seg.y0;
+            }
+            const soft = seg.flex * (reduceMotion ? 0.35 : 1);
+            const breath = Math.sin(t * 1.05 + seg.phase * 3.1) * (1.4 + seg.depth * 4.2);
+            const push = px * 52 + breath;
+            const ppy = py * 26;
+
+            const dx = seg.x1 - seg.x0;
+            const dy = seg.y1 - seg.y0;
+            const dcx = seg.cx - seg.x0;
+            const dcy = seg.cy - seg.y0;
+
+            const x0 = baseX;
+            const y0 = baseY;
+            const cx = baseX + dcx + push * soft * 0.95;
+            const cy = baseY + dcy + ppy * soft * 0.95;
+            const x1 = baseX + dx + push * soft * 0.66;
+            const y1 = baseY + dy + ppy * soft * 0.66;
+
+            seg.points = [x0, y0, cx, cy, x1, y1];
+          }
+        }
+
+        const segPoints = (seg) => seg.points;
+
+        /* ==========================================================================
+           6 · 镜头：2D 仿射矩阵 + 关键帧分镜 + 视差
+           ========================================================================== */
+
+        // 微距（看根）→ 仰视上升 → 平移追光 → 拉远揭示全景
+        const SHOTS = [
+          { p: 0.00, zoom: 1.16, x: 0, y: 96 },
+          { p: 0.14, zoom: 1.02, x: 0, y: 42 },
+          { p: 0.30, zoom: 0.94, x: 0, y: -212 },
+          { p: 0.50, zoom: 0.88, x: 6, y: -524 },
+          { p: 0.66, zoom: 0.82, x: 34, y: -706 },
+          { p: 0.80, zoom: 0.74, x: 52, y: -742 },
+          { p: 0.92, zoom: 0.63, x: 10, y: -610 },
+          { p: 1.00, zoom: 0.53, x: 0, y: -566 },
+        ];
+
+        const cam = { x: 0, y: 96, zoom: 1.16, s: 1 };
+        const par = { x: 0, y: 0, tx: 0, ty: 0, idle: 0 };
+
+        function readCam(p) {
+          let i = 0;
+          while (i < SHOTS.length - 2 && p > SHOTS[i + 1].p) i++;
+          const a = SHOTS[i], b = SHOTS[i + 1];
+          const t = smoothstep(a.p, b.p, p);
+          cam.x = lerp(a.x, b.x, t);
+          cam.y = lerp(a.y, b.y, t);
+          cam.zoom = lerp(a.zoom, b.zoom, t);
+        }
+
+        /** 视差：指针微幅偏移；停手 2 秒后由惯性弹簧拉回标定位 */
+        function updateParallax(dt) {
+          if (wind.hasPointer && !reduceMotion) {
+            par.tx = (wind.mx - 0.5) * 46;
+            par.ty = (wind.my - 0.5) * 30;
+          }
+          const k = 4.2, damp = 6.0;
+          par.x += (par.tx - par.x) * Math.min(1, k * dt);
+          par.y += (par.ty - par.y) * Math.min(1, k * dt);
+          par.x *= Math.pow(0.35, dt / damp);
+          par.y *= Math.pow(0.35, dt / damp);
+        }
+
+        const worldToScreen = (x, y) => ({ x: view.w * 0.5 + (x - cam.x) * cam.s, y: view.h * 0.62 + (y - cam.y) * cam.s });
+
+        /* ==========================================================================
+           7 · 粒子系统：尘絮 → 孢子 → 光点 → 漫天花瓣
+           ========================================================================== */
+
+        const PARTICLES = [];
+        const PCOUNT = 200;
+
+        function buildParticles() {
+          const rnd = mulberry32(SEED ^ 0x9e3779b9);
+          PARTICLES.length = 0;
+          for (let i = 0; i < PCOUNT; i++) {
+            PARTICLES.push({
+              x: rnd() * view.w,
+              y: rnd() * view.h,
+              vx: 0, vy: 0,
+              z: 0.35 + rnd() * 0.9,
+              r: 0.7 + rnd() * 1.5,
+              rot: rnd() * TAU,
+              spin: (rnd() - 0.5) * 1.6,
+              bias: (rnd() - 0.5) * 0.34,
+              phase: rnd() * TAU,
+              windK: 0.5 + rnd() * 0.9,
+            });
+          }
+        }
+
+        /* ==========================================================================
+           8 · 飞鸟：Boids 群飞 → 收敛降落 → 栖息
+           ========================================================================== */
+
+        const FLOCK = [];
+        const BIRD_N = 3 + ((SEED >>> 8) % 3);   // 3 - 5 只
+
+        function buildFlock() {
+          const rnd = mulberry32(SEED ^ 0x85ebca6b);
+          FLOCK.length = 0;
+          // 停靠点：树冠显眼的外缘枝头
+          const perches = [];
+          for (let i = 0; i < TREE.leaves.length; i += 5) {
+            const l = TREE.leaves[i];
+            if (l.seg >= 0 && TREE.segs[l.seg].depth >= 3 && Math.abs(l.x) > 40) {
+              perches.push({ x: l.x, y: l.y - 12, seg: l.seg });
+            }
+          }
+          for (let i = perches.length - 1; i > 0; i--) {
+            const j = Math.floor(rnd() * (i + 1));
+            const t = perches[i]; perches[i] = perches[j]; perches[j] = t;
+          }
+          for (let i = 0; i < BIRD_N; i++) {
+            // 第一只鸟直落旧巢，呼应「鸟落旧枝安」；其余归于树梢
+            const nestPerch = { x: TREE.fork.x + 22, y: TREE.fork.y + 2, seg: -1 };
+            const pTarget = i === 0 ? nestPerch : (perches[i % Math.max(1, perches.length)] || nestPerch);
+            FLOCK.push({
+              x: 0, y: 0, vx: 0, vy: 0,
+              t0: 0.905 + i * 0.008 + rnd() * 0.005,
+              wing: rnd() * TAU, wingW: 0,
+              landed: false, landT: 0, landAt: 0.95 + i * 0.01 + rnd() * 0.006,
+              perch: pTarget,
+              size: 20 + rnd() * 8,
+              ox: (rnd() - 0.5) * 8, oy: (rnd() - 0.5) * 6, born: false,
+              rnd: mulberry32(SEED + i * 977),
+            });
+          }
+        }
+
+        function spawnBird(b) {
+          const s = Math.max(0.001, cam.s);
+          const halfW = view.w / (2 * s), halfH = view.h / (2 * s);
+          const left = b.rnd() < 0.5;
+          b.x = cam.x + (left ? -halfW * 1.25 : halfW * 1.25) + (b.rnd() - 0.5) * halfW * 0.3;
+          b.y = cam.y - halfH * 0.15 + (b.rnd() - 0.5) * halfH * 0.7;
+          const to = Math.atan2(cam.y - halfH * 0.35 - b.y, cam.x - b.x);
+          const sp = 150 + b.rnd() * 60;
+          b.vx = Math.cos(to) * sp; b.vy = Math.sin(to) * sp;
+          b.born = true;
+        }
+
+        const tmpB = { x: 0, y: 0 };
+        function updateFlock(p, dt, time) {
+          if (p < 0.912) return;
+          for (let i = 0; i < FLOCK.length; i++) {
+            const b = FLOCK[i];
+            const appear = clamp((p - b.t0) / 0.012);
+            if (appear <= 0) continue;
+            if (!b.born) spawnBird(b);
+
+            b.wingW += (1 - b.wingW) * Math.min(1, dt * 3);
+            b.wing += dt * (b.landed ? 1.4 : 9.5 + b.wingW * 3);
+
+            if (p < b.landAt) {
+              // ---- Boids：分离 / 对齐 / 凝聚 ----
+              let sx = 0, sy = 0, ax = 0, ay = 0, cx = 0, cy = 0, nSep = 0, n = 0;
+              for (let j = 0; j < FLOCK.length; j++) {
+                if (j === i) continue;
+                const o = FLOCK[j];
+                const dx = b.x - o.x, dy = b.y - o.y;
+                const d = Math.hypot(dx, dy) || 1;
+                if (d < 78) { sx += dx / d / d * 60; sy += dy / d / d * 60; nSep++; }
+                if (d < 320) { ax += o.vx; ay += o.vy; cx += o.x; cy += o.y; n++; }
+              }
+              let fx = 0, fy = 0;
+              if (nSep) { fx += sx * 2.4; fy += sy * 2.4; }
+              if (n) {
+                fx += (ax / n - b.vx) * 0.55;
+                fy += (ay / n - b.vy) * 0.55;
+                fx += (cx / n - b.x) * 0.32;
+                fy += (cy / n - b.y) * 0.32;
+              }
+              // 环绕鸟巢盘旋的引力，让轨迹最终收敛到树上
+              const ox = TREE.fork.x + Math.cos(time * 0.6 + i * 1.7) * 160;
+              const oy = TREE.fork.y - 120 + Math.sin(time * 0.75 + i * 2.1) * 90;
+              fx += (ox - b.x) * 0.22;
+              fy += (oy - b.y) * 0.22;
+
+              b.vx += fx * dt; b.vy += fy * dt;
+              const sp = Math.hypot(b.vx, b.vy);
+              const maxSp = 205, minSp = 88;
+              if (sp > maxSp) { b.vx *= maxSp / sp; b.vy *= maxSp / sp; }
+              else if (sp < minSp) { const k = minSp / (sp || 1); b.vx *= k; b.vy *= k; }
+              b.x += b.vx * dt; b.y += b.vy * dt;
+            } else {
+              // ---- 收敛降落 → 栖息 ----
+              if (!b.landed) { b.landT = 0; b.landed = true; b.lx = b.x; b.ly = b.y; }
+              b.landT = Math.min(1, b.landT + dt / 1.7);
+              const e = 1 - Math.pow(1 - b.landT, 3);
+              const target = b.perch;
+              b.x = lerp(b.lx, target.x + b.ox, e);
+              b.y = lerp(b.ly, target.y + b.oy, e) - Math.sin(e * Math.PI) * 26;
+              b.wingW += ((1 - e) - b.wingW) * Math.min(1, dt * 4);
+              b.vx *= 0.9; b.vy *= 0.9;
+            }
+          }
+        }
+
+        /* ==========================================================================
+           9 · 程序化环境声：白噪声风 + 粉红噪声的萌发声
+           ========================================================================== */
+
+        const audio = {
+          ac: null, master: null, windGain: null, rustleGain: null, growthGain: null,
+          ready: false, on: false,
+
+          /** 首次交互后初始化；不加载任何音频文件 */
+          init() {
+            if (this.ready) return;
+            const AC = window.AudioContext || window.webkitAudioContext;
+            if (!AC) return;
+            const ac = new AC();
+            this.ac = ac;
+
+            const master = ac.createGain();
+            master.gain.value = 0;
+            master.connect(ac.destination);
+            this.master = master;
+
+            // ---- 第一层：风声 = 白噪声 → 低通 → LFO 控制起伏 ----
+            const noiseBuf = ac.createBuffer(1, ac.sampleRate * 3, ac.sampleRate);
+            const nd = noiseBuf.getChannelData(0);
+            for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
+
+            const windSrc = ac.createBufferSource();
+            windSrc.buffer = noiseBuf; windSrc.loop = true;
+            const windLP = ac.createBiquadFilter();
+            windLP.type = 'lowpass'; windLP.frequency.value = 420; windLP.Q.value = 0.7;
+            const windGain = ac.createGain();
+            windGain.gain.value = 0.16;
+            this.windGain = windGain;
+            windSrc.connect(windLP).connect(windGain).connect(master);
+            windSrc.start();
+
+            // LFO 低频振荡器：让风有呼吸般的起伏
+            const lfo = ac.createOscillator();
+            lfo.type = 'sine'; lfo.frequency.value = 0.063;
+            const lfoAmp = ac.createGain(); lfoAmp.gain.value = 0.075;
+            lfo.connect(lfoAmp).connect(windGain.gain);
+            lfo.start();
+            const lfo2 = ac.createOscillator();
+            lfo2.type = 'sine'; lfo2.frequency.value = 0.19;
+            const lfo2Amp = ac.createGain(); lfo2Amp.gain.value = 180;
+            lfo2.connect(lfo2Amp).connect(windLP.frequency);
+            lfo2.start();
+
+            // ---- 第二层：粉红噪声（Paul Kellet 近似）→ 高通 → 叶隙沙沙 ----
+            const pinkBuf = ac.createBuffer(1, ac.sampleRate * 3, ac.sampleRate);
+            const pd = pinkBuf.getChannelData(0);
+            let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+            for (let i = 0; i < pd.length; i++) {
+              const w = Math.random() * 2 - 1;
+              b0 = 0.99886 * b0 + w * 0.0555179;
+              b1 = 0.99332 * b1 + w * 0.0750759;
+              b2 = 0.969 * b2 + w * 0.153852;
+              b3 = 0.8665 * b3 + w * 0.3104856;
+              b4 = 0.55 * b4 + w * 0.5329522;
+              b5 = -0.7616 * b5 - w * 0.016898;
+              pd[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + w * 0.5362) * 0.11;
+              b6 = w * 0.115926;
+            }
+            const pinkSrc = ac.createBufferSource();
+            pinkSrc.buffer = pinkBuf; pinkSrc.loop = true;
+            const pinkHP = ac.createBiquadFilter();
+            pinkHP.type = 'highpass'; pinkHP.frequency.value = 1600;
+            const rustle = ac.createGain(); rustle.gain.value = 0.0;
+            this.rustleGain = rustle;
+            pinkSrc.connect(pinkHP).connect(rustle).connect(master);
+            pinkSrc.start();
+
+            // ---- 第三层：萌发细碎声（更高的频带，只在大幅生长时浮现） ----
+            const budSrc = ac.createBufferSource();
+            budSrc.buffer = pinkBuf; budSrc.loop = true;
+            budSrc.playbackRate.value = 1.9;
+            const budBP = ac.createBiquadFilter();
+            budBP.type = 'bandpass'; budBP.frequency.value = 3400; budBP.Q.value = 1.1;
+            const growth = ac.createGain(); growth.gain.value = 0;
+            this.growthGain = growth;
+            budSrc.connect(budBP).connect(growth).connect(master);
+            budSrc.start();
+
+            this.ready = true;
+          },
+
+          /** 随生长速率与风力实时调整三层音量 */
+          update(p, growthRate, dt, stageIndex) {
+            if (!this.ready || !this.on) return;
+            const now = this.ac.currentTime;
+            const windLevel = 0.1 + Math.min(0.16, Math.abs(wind.x) * 0.2) + wind.gust * 0.09;
+            const rustle = (stageIndex >= 3 ? 0.02 : 0.006) + Math.min(0.05, Math.abs(wind.x) * 0.05) + (p > 0.7 ? 0.012 : 0);
+            this.windGain.gain.setTargetAtTime(windLevel, now, 0.6);
+            this.rustleGain.gain.setTargetAtTime(rustle, now, 0.5);
+            this.growthGain.gain.setTargetAtTime(Math.min(0.05, growthRate * 2.4) + wind.gust * 0.012, now, 0.12);
+          },
+
+          setEnabled(on) {
+            this.init();
+            if (!this.ready) return;
+            this.on = on;
+            if (on && this.ac.state === 'suspended') this.ac.resume();
+            this.master.gain.setTargetAtTime(on ? 0.62 : 0, this.ac.currentTime, on ? 1.4 : 0.5);
+          },
+        };
+
+        /* ==========================================================================
+           10 · 诗句层：随滚动逐字淡入，横线展开
+           ========================================================================== */
+
+        const poemEl = $('poetry');
+        const poemZh = $('poemZh');
+        const poemEn = $('poemEn');
+        let poemShown = -1;
+
+        function showPoem(index) {
+          if (index === poemShown) return;
+          poemShown = index;
+          const poem = POEMS[index];
+          poemEl.classList.remove('is-visible');
+          window.setTimeout(() => {
+            poemZh.innerHTML = '';
+            const chars = Array.from(poem.zh);
+            chars.forEach((ch, k) => {
+              const span = document.createElement('span');
+              span.className = ch === '，' || ch === '。' ? 'char punct' : 'char';
+              span.textContent = ch;
+              span.style.transitionDelay = (k * 0.085).toFixed(2) + 's';
+              poemZh.appendChild(span);
+            });
+            poemEn.textContent = poem.en;
+            poemEn.style.transitionDelay = (chars.length * 0.085 + 0.15).toFixed(2) + 's';
+            requestAnimationFrame(() => poemEl.classList.add('is-visible'));
+          }, 180);
+        }
+
+        /* ==========================================================================
+           11 · 绘制：背景（天空 · 光源 · 土壤 · 纸纹 · 暗角）
+           ========================================================================== */
+
+        const bg = document.createElement('canvas');
+        const bgCtx = bg.getContext('2d');
+        let bgKey = -1;
+        const BG_MARGIN = 64;
+
+        function paintBackground(p, C, force) {
+          const key = Math.round(p * 1400) * 4096 + C.index;
+          if (!force && key === bgKey) return;
+          bgKey = key;
+
+          const M = BG_MARGIN;
+          const w = view.w + M * 2, h = view.h + M * 2;
+          if (bg.width !== Math.round(w * view.dpr) || bg.height !== Math.round(h * view.dpr)) {
+            bg.width = Math.round(w * view.dpr);
+            bg.height = Math.round(h * view.dpr);
+          }
+          const g = bgCtx;
+          g.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
+          g.globalAlpha = 1;
+          g.globalCompositeOperation = 'source-over';
+
+          // 天空：三色纵向渐变，随阶段连续变化
+          const sky = g.createLinearGradient(0, 0, 0, h);
+          sky.addColorStop(0, rgb(C.sky[0]));
+          sky.addColorStop(0.52, rgb(C.sky[1]));
+          sky.addColorStop(1, rgb(C.sky[2]));
+          g.fillStyle = sky;
+          g.fillRect(0, 0, w, h);
+
+          // 光源：中心饱满、边缘扩散的暖光
+          const sx = view.w * C.sunPos[0] + M, sy = view.h * C.sunPos[1] + M;
+          const sunR = Math.max(w, h) * 0.8;
+          const sun = g.createRadialGradient(sx, sy, 0, sx, sy, sunR);
+          sun.addColorStop(0, rgba(C.sun, 0.62 * C.sunPow));
+          sun.addColorStop(0.28, rgba(C.sun, 0.24 * C.sunPow));
+          sun.addColorStop(0.66, rgba(C.sun, 0.07 * C.sunPow));
+          sun.addColorStop(1, rgba(C.sun, 0));
+          g.fillStyle = sun;
+          g.fillRect(0, 0, w, h);
+
+          // 土壤层：地表以下（世界 y > 0）填土色，镜头上移时自然退出画面。
+          // 交界处用一段渐变带柔化，避免出现一条几何硬直线。
+          const horizon = view.h * 0.62 + (0 - cam.y) * cam.s + M;
+          if (horizon < h + 320) {
+            const softTop = 130;
+            const y0 = horizon - softTop;
+            const gr = g.createLinearGradient(0, y0, 0, h);
+            const k1 = clamp(softTop / Math.max(1, h - y0), 0.04, 0.7);
+            gr.addColorStop(0, rgba(C.ground[0], 0));
+            gr.addColorStop(k1, rgba(C.ground[0], 0.97));
+            gr.addColorStop(1, rgba(C.ground[1], 1));
+            g.fillStyle = gr;
+            g.fillRect(0, y0, w, h - y0);
+
+            // 地表一线：破土前后才浮现的一道湿润暗痕
+            const bandAlpha = clamp(1 - Math.abs(p - 0.24) / 0.2) * 0.35;
+            if (bandAlpha > 0.01) {
+              const band = g.createLinearGradient(0, horizon - 22, 0, horizon + 30);
+              band.addColorStop(0, rgba(C.trunk, 0));
+              band.addColorStop(0.5, rgba(C.trunk, bandAlpha));
+              band.addColorStop(1, rgba(C.trunk, 0));
+              g.fillStyle = band;
+              g.fillRect(0, horizon - 22, w, 52);
+            }
+
+            // 土壤颗粒与裂隙，只在土地可见时绘制
+            const soilAlpha = clamp(1 - (p - 0.34) / 0.24);
+            if (soilAlpha > 0.01) {
+              const rnd = mulberry32(SEED ^ 0x1b56c4e9);
+              g.globalAlpha = soilAlpha * 0.5;
+              for (let i = 0; i < 260; i++) {
+                const x = rnd() * w, y = horizon + rnd() * (h - horizon);
+                const r = 0.8 + rnd() * 3.2;
+                g.fillStyle = rgba(rnd() < 0.5 ? [26, 18, 12] : C.sun, 0.06 + rnd() * 0.1);
+                g.beginPath();
+                g.arc(x, y, r, 0, TAU);
+                g.fill();
+              }
+              g.globalAlpha = 1;
+            }
+          }
+
+          // 纸纹：overlay 叠加，只留下颗粒与水迹，不改变整体明度
+          if (paper.width > 1) {
+            g.globalCompositeOperation = 'overlay';
+            g.globalAlpha = 0.42;
+            g.drawImage(paper, 0, 0, w, h);
+            g.globalCompositeOperation = 'source-over';
+            g.globalAlpha = 1;
+          }
+
+          // 暗角：把视线收进画面中心
+          const vg = g.createRadialGradient(w * 0.5, h * 0.46, Math.min(w, h) * 0.22, w * 0.5, h * 0.5, Math.max(w, h) * 0.78);
+          vg.addColorStop(0, rgba(C.vignette, 0));
+          vg.addColorStop(1, rgba(C.vignette, C.vignetteStrength));
+          g.fillStyle = vg;
+          g.fillRect(0, 0, w, h);
+        }
+
+        /* ==========================================================================
+           12 · 绘制：树体、叶、果、巢、鸟
+           ========================================================================== */
+
+        /** 段的水彩轮廓：自根向梢自然收细，生长端如毛笔收锋般温润收尖 */
+        function traceSeg(seg, k, bump, wScale = 1) {
+          const P = segPoints(seg);
+          const N = 9;
+          const left = [], right = [];
+          const phase = seg.phase;
+          const isGrowing = k < 0.995;
+          // 新芽抽条时幼细，长成后渐显苍劲
+          const mature = Math.min(1, 0.3 + k * 1.8);
+          const half = seg.w * 0.5 * wScale * mature;
+
+          for (let i = 0; i <= N; i++) {
+            const u = i / N;
+            const t = k * u;
+            const pt = quadAt(P, t);
+            const tg = quadTan(P, t);
+            const m = Math.hypot(tg.x, tg.y) || 1;
+            const nx = -tg.y / m, ny = tg.x / m;
+
+            // 基础锥度：越往枝梢越细
+            let taper = half * lerp(1, 0.68, Math.pow(t, 0.72));
+            // 若还在抽条中，尖端优雅收锋，避免平截木桩感
+            if (isGrowing) {
+              taper *= lerp(1, 0.15, Math.pow(u, 2.4));
+            } else if (seg.depth >= 4) {
+              // 终梢自然收尖
+              taper *= lerp(1, 0.25, Math.pow(u, 2.0));
+            }
+
+            const wob = 1 + bump * Math.sin(t * 9.5 + phase);
+            left.push({ x: pt.x + nx * taper * wob, y: pt.y + ny * taper * wob });
+            right.push({ x: pt.x - nx * taper * wob, y: pt.y - ny * taper * wob });
+          }
+
+          const tgEnd = quadTan(P, k);
+          const mEnd = Math.hypot(tgEnd.x, tgEnd.y) || 1;
+          const txEnd = tgEnd.x / mEnd, tyEnd = tgEnd.y / mEnd;
+          const rTip = Math.hypot(left[N].x - right[N].x, left[N].y - right[N].y) * 0.5;
+
+          const tg0 = quadTan(P, 0);
+          const m0 = Math.hypot(tg0.x, tg0.y) || 1;
+          const tx0 = tg0.x / m0, ty0 = tg0.y / m0;
+          const rBase = Math.hypot(left[0].x - right[0].x, left[0].y - right[0].y) * 0.5;
+
+          ctx.beginPath();
+          ctx.moveTo(left[0].x, left[0].y);
+          for (let i = 1; i <= N; i++) ctx.lineTo(left[i].x, left[i].y);
+
+          // 枝梢末端：沿切线方向圆润拱出，如水墨点染收锋
+          ctx.bezierCurveTo(
+            left[N].x + txEnd * rTip * 0.8, left[N].y + tyEnd * rTip * 0.8,
+            right[N].x + txEnd * rTip * 0.8, right[N].y + tyEnd * rTip * 0.8,
+            right[N].x, right[N].y
+          );
+
+          for (let i = N - 1; i >= 0; i--) ctx.lineTo(right[i].x, right[i].y);
+
+          // 始端基座：圆润抱合，自然融入父枝，不留硬边折角
+          ctx.bezierCurveTo(
+            right[0].x - tx0 * rBase * 0.6, right[0].y - ty0 * rBase * 0.6,
+            left[0].x - tx0 * rBase * 0.6, left[0].y - ty0 * rBase * 0.6,
+            left[0].x, left[0].y
+          );
+
+          ctx.closePath();
+          return P;
+        }
+
+        function drawRoots(p, C) {
+          const alpha = clamp(1 - (p - 0.24) / 0.22);
+          if (alpha <= 0.01) return;
+          ctx.save();
+          ctx.globalCompositeOperation = 'source-over';
+          ctx.globalAlpha = alpha;
+          for (const idx of TREE.roots) {
+            const seg = TREE.segs[idx];
+            const k = growthEase(clamp((p - seg.t0) / seg.dur));
+            if (k <= 0.002) continue;
+            const sub = subQuad(segPoints(seg), k);
+            const single = { ...seg, points: sub };
+            traceSeg(single, 1, 0.2);
+            ctx.fillStyle = rgba(C.trunkLit, 0.42);
+            ctx.fill();
+            ctx.lineWidth = 1.1;
+            ctx.strokeStyle = rgba(C.trunkLit, 0.3);
+            ctx.stroke();
+          }
+          ctx.restore();
+        }
+
+        function drawTree(p, C) {
+          const segs = TREE.segs;
+          ctx.save();
+          ctx.globalCompositeOperation = 'multiply';
+          ctx.lineJoin = 'round';
+          ctx.lineCap = 'round';
+
+          // 主体与水彩沉淀线：以没骨点染 + 焦墨润边，浑然一体无圆盘接缝
+          for (let i = 0; i < segs.length; i++) {
+            const seg = segs[i];
+            if (seg.root) continue;
+            // 父段生长未到达挂接点前，子段绝不提前在空中冒出
+            if (seg.parent >= 0) {
+              const pSeg = segs[seg.parent];
+              const pK = growthEase(clamp((p - pSeg.t0) / pSeg.dur));
+              if (pK < (seg.attachT || 1.0) - 0.003) continue;
+            }
+            const k = growthEase(clamp((p - seg.t0) / seg.dur));
+            if (k <= 0.003) continue;
+            const mixT = clamp(seg.depth / 3.6);
+            const col = blendAny(C.trunk, C.trunkLit, mixT);
+
+            // 主体水墨笔触
+            ctx.globalAlpha = lerp(0.82, 0.46, clamp(seg.depth / 4));
+            traceSeg(seg, k, seg.depth <= 1 ? 0.12 : 0.2);
+            ctx.fillStyle = rgb(col);
+            ctx.fill();
+
+            // 边缘水墨晕开：极其轻微的湿润边缘（仅主枝）
+            if (seg.depth <= 1) {
+              ctx.lineWidth = 1.6;
+              ctx.strokeStyle = rgba(C.trunkLit, 0.22);
+              ctx.stroke();
+            }
+
+            // 焦墨微骨线：顺着多边形边缘轻勾，让树干筋骨苍劲
+            ctx.lineWidth = seg.depth === 0 ? 1.4 : 0.9;
+            ctx.strokeStyle = rgba(C.trunk, 0.32);
+            ctx.stroke();
+          }
+          ctx.restore();
+          ctx.globalAlpha = 1;
+        }
+
+        function drawLeaves(p, C, time) {
+          const leaves = TREE.leaves;
+          ctx.save();
+          ctx.globalCompositeOperation = 'multiply';
+
+          for (let i = 0; i < leaves.length; i++) {
+            const lf = leaves[i];
+            const k = clamp((p - lf.t0) / lf.dur);
+            if (k <= 0.004) continue;
+            const open = backOut(k, 1.9);
+            if (open <= 0.01) continue;
+
+            const seg = TREE.segs[lf.seg];
+            const P = segPoints(seg);
+            const at = quadAt(P, lf.t);
+            // 叶柄随风轻摆
+            const flick = Math.sin(time * 1.6 + lf.phase) * (0.07 + seg.flex * 0.1) * (reduceMotion ? 0.3 : 1);
+            const ca = Math.cos(lf.ang + flick), sa = Math.sin(lf.ang + flick);
+            const s = lf.size * open;
+            const tone = lf.tone;
+            const col = tone < 0.33 ? C.leaf[1] : tone < 0.68 ? C.leaf[0] : C.leaf[2];
+
+            const px = (lx, ly) => at.x + lx * ca - ly * sa;
+            const py = (lx, ly) => at.y + lx * sa + ly * ca;
+            const ax = s * 0.65, ay = s * 0.52, tx = s * 1.58;
+
+            // 水彩第一层：大一圈的湿润淡墨底晕
+            ctx.beginPath();
+            ctx.moveTo(at.x, at.y);
+            ctx.quadraticCurveTo(px(ax * 1.18, -ay * 1.18), py(ax * 1.18, -ay * 1.18), px(tx * 1.08, 0), py(tx * 1.08, 0));
+            ctx.quadraticCurveTo(px(ax * 1.18, ay * 1.18), py(ax * 1.18, ay * 1.18), at.x, at.y);
+            ctx.globalAlpha = 0.16 + 0.12 * (1 - tone);
+            ctx.fillStyle = rgb(col);
+            ctx.fill();
+
+            // 水彩第二层：主体叶瓣，水滴形态
+            ctx.beginPath();
+            ctx.moveTo(at.x, at.y);
+            ctx.quadraticCurveTo(px(ax, -ay), py(ax, -ay), px(tx, 0), py(tx, 0));
+            ctx.quadraticCurveTo(px(ax, ay), py(ax, ay), at.x, at.y);
+            ctx.globalAlpha = 0.52 + 0.32 * (1 - tone);
+            ctx.fillStyle = rgb(col);
+            ctx.fill();
+
+            // 水彩第三层：叶尖与叶脊的浓墨沉淀痕
+            if (tone > 0.4) {
+              ctx.beginPath();
+              ctx.moveTo(at.x, at.y);
+              ctx.quadraticCurveTo(px(ax * 0.7, -ay * 0.12), py(ax * 0.7, -ay * 0.12), px(tx * 0.9, 0), py(tx * 0.9, 0));
+              ctx.lineWidth = 1.1;
+              ctx.globalAlpha = 0.28;
+              ctx.strokeStyle = rgb(blendAny(col, C.trunk, 0.4));
+              ctx.stroke();
+            }
+          }
+          ctx.restore();
+          ctx.globalAlpha = 1;
+        }
+
+        function drawFruits(p, C, time) {
+          const fruits = TREE.fruits;
+          ctx.save();
+          ctx.globalCompositeOperation = 'multiply';
+          for (let i = 0; i < fruits.length; i++) {
+            const f = fruits[i];
+            const k = clamp((p - f.t0) / 0.055);
+            if (k <= 0.004) continue;
+            const spring = backOut(k, 2.4);
+            if (spring <= 0.01) continue;
+
+            const seg = TREE.segs[f.seg];
+            const P = segPoints(seg);
+            const at = quadAt(P, f.t);
+            const sw = Math.sin(time * 1.7 + f.phase) * 0.1 + wind.x * 0.22 + wind.y * 0.06;
+            const len = f.size * 1.6;
+            const x = at.x + Math.sin(sw) * len;
+            const y = at.y + Math.cos(sw) * len;
+            const r = Math.max(0.4, f.size * spring);
+
+            // 果柄：轻柔弧线悬挂
+            ctx.globalAlpha = 0.55;
+            ctx.beginPath();
+            ctx.moveTo(at.x, at.y);
+            ctx.quadraticCurveTo((at.x + x) * 0.5 + 2.5, (at.y + y) * 0.5, x, y - r * 0.6);
+            ctx.lineWidth = 1.2;
+            ctx.strokeStyle = rgba(C.trunk, 0.85);
+            ctx.stroke();
+
+            // 果体：渐变朱红如熟柿，边缘渗化
+            const g = ctx.createRadialGradient(x - r * 0.35, y - r * 0.35, r * 0.05, x, y, r * 1.15);
+            g.addColorStop(0, rgba([255, 178, 160], 0.95));
+            g.addColorStop(0.35, rgba(C.fruit, 0.92));
+            g.addColorStop(0.85, rgba([168, 42, 36], 0.88));
+            g.addColorStop(1, rgba([112, 24, 26], 0.75));
+            ctx.globalAlpha = 0.82 * clamp(spring);
+            ctx.beginPath();
+            ctx.arc(x, y, r, 0, TAU);
+            ctx.fillStyle = g;
+            ctx.fill();
+
+            // 水彩光泽点（剔透高光）
+            ctx.globalAlpha = 0.45 * clamp(spring);
+            ctx.beginPath();
+            ctx.arc(x - r * 0.32, y - r * 0.32, r * 0.26, 0, TAU);
+            ctx.fillStyle = '#fff';
+            ctx.fill();
+
+            // 果脐小点
+            ctx.globalAlpha = 0.4;
+            ctx.beginPath();
+            ctx.arc(x, y + r * 0.88, r * 0.12, 0, TAU);
+            ctx.fillStyle = rgb(C.trunk);
+            ctx.fill();
+          }
+          ctx.restore();
+          ctx.globalAlpha = 1;
+        }
+
+        /** 写意水彩鸟巢：在主干交汇处以多条无规则曲线交叉捆扎，并盛着温润鸟卵 */
+        function drawNest(p, C, time) {
+          const k = clamp((p - 0.915) / 0.05);
+          if (k <= 0.005) return;
+          const open = backOut(k, 1.6);
+          const cx = TREE.fork.x, cy = TREE.fork.y + 10;
+          const R = 34 * open;
+          const rnd = mulberry32(SEED ^ 0x27d4eb2f);
+
+          ctx.save();
+          ctx.globalCompositeOperation = 'multiply';
+          ctx.lineCap = 'round';
+
+          // 巢内两枚青瓷小鸟蛋
+          if (open > 0.6) {
+            const eggAlpha = clamp((open - 0.6) / 0.4);
+            ctx.globalAlpha = 0.78 * eggAlpha;
+            for (let e = -1; e <= 1; e += 2) {
+              ctx.save();
+              ctx.translate(cx + e * 7, cy - 2);
+              ctx.rotate(e * 0.25);
+              ctx.beginPath();
+              ctx.ellipse(0, 0, 5.5, 7.5, 0, 0, TAU);
+              ctx.fillStyle = 'rgba(215, 238, 228, 0.9)';
+              ctx.fill();
+              ctx.lineWidth = 0.7;
+              ctx.strokeStyle = 'rgba(120, 155, 140, 0.6)';
+              ctx.stroke();
+              ctx.restore();
+            }
+          }
+
+          // 枝条杂草交叉环绕
+          for (let i = 0; i < 64; i++) {
+            const a0 = rnd() * TAU;
+            const a1 = a0 + (rnd() - 0.5) * 2.4 + Math.PI * (rnd() < 0.5 ? 0.6 : -0.6);
+            const r0 = R * (0.45 + rnd() * 0.75);
+            const r1 = R * (0.45 + rnd() * 0.75);
+            const x0 = cx + Math.cos(a0) * r0, y0 = cy + Math.sin(a0) * r0 * 0.58;
+            const x1 = cx + Math.cos(a1) * r1, y1 = cy + Math.sin(a1) * r1 * 0.58;
+            const mx = (x0 + x1) / 2 + (rnd() - 0.5) * R * 0.8;
+            const my = (y0 + y1) / 2 + (rnd() - 0.5) * R * 0.5 + R * 0.18;
+            ctx.beginPath();
+            ctx.moveTo(x0, y0);
+            ctx.quadraticCurveTo(mx, my, x1, y1);
+            ctx.lineWidth = 0.8 + rnd() * 1.8;
+            ctx.globalAlpha = 0.18 + rnd() * 0.32;
+            ctx.strokeStyle = rgb(rnd() < 0.6 ? C.trunk : blendAny(C.trunk, C.trunkLit, 0.5));
+            ctx.stroke();
+          }
+
+          // 巢底温润暗影
+          const g = ctx.createRadialGradient(cx, cy + R * 0.22, 0, cx, cy + R * 0.22, R * 1.6);
+          g.addColorStop(0, rgba([38, 26, 16], 0.38));
+          g.addColorStop(0.7, rgba([38, 26, 16], 0.1));
+          g.addColorStop(1, rgba([38, 26, 16], 0));
+          ctx.globalAlpha = 1;
+          ctx.fillStyle = g;
+          ctx.beginPath();
+          ctx.ellipse(cx, cy + R * 0.18, R * 1.55, R * 0.92, 0, 0, TAU);
+          ctx.fill();
+          ctx.restore();
+          ctx.globalAlpha = 1;
+        }
+
+        /** 水墨飞鸟：展翅翱翔与灵巧栖息 */
+        function drawBirds(p, C) {
+          if (p < 0.905) return;
+          ctx.save();
+          ctx.lineCap = 'round';
+          ctx.lineJoin = 'round';
+          for (const b of FLOCK) {
+            const appear = clamp((p - b.t0) / 0.012);
+            if (appear <= 0 || !b.born) continue;
+            const flap = b.landed ? 0 : Math.sin(b.wing) * (0.6 + b.wingW * 0.4);
+            const s = b.size * (0.8 + 0.3 * appear);
+            const dir = b.vx >= 0 ? 1 : -1;
+
+            if (b.landed) {
+              // ---- 栖息形态：静立枝头，梳羽翘尾 ----
+              ctx.save();
+              ctx.translate(b.x, b.y);
+              ctx.globalAlpha = 0.88 * appear;
+
+              // 鸟身：饱满的水墨小水滴
+              ctx.beginPath();
+              ctx.ellipse(0, -s * 0.15, s * 0.52, s * 0.34, -dir * 0.25, 0, TAU);
+              ctx.fillStyle = rgb(C.bird);
+              ctx.fill();
+
+              // 头部与小尖喙
+              ctx.beginPath();
+              ctx.arc(dir * s * 0.45, -s * 0.36, s * 0.22, 0, TAU);
+              ctx.fillStyle = rgb(C.bird);
+              ctx.fill();
+              ctx.beginPath();
+              ctx.moveTo(dir * s * 0.6, -s * 0.38);
+              ctx.lineTo(dir * s * 0.84, -s * 0.34);
+              ctx.lineTo(dir * s * 0.58, -s * 0.28);
+              ctx.closePath();
+              ctx.fillStyle = 'rgba(235, 168, 70, 0.95)';
+              ctx.fill();
+
+              // 尾羽：向后轻挑两笔
+              ctx.beginPath();
+              ctx.moveTo(-dir * s * 0.4, -s * 0.12);
+              ctx.lineTo(-dir * s * 0.9, -s * 0.32);
+              ctx.moveTo(-dir * s * 0.38, -s * 0.05);
+              ctx.lineTo(-dir * s * 0.85, -s * 0.18);
+              ctx.lineWidth = 1.8;
+              ctx.strokeStyle = rgb(C.bird);
+              ctx.stroke();
+
+              // 细爪抓枝
+              ctx.lineWidth = 1.2;
+              ctx.strokeStyle = 'rgba(80, 60, 40, 0.7)';
+              ctx.beginPath();
+              ctx.moveTo(0, s * 0.15);
+              ctx.lineTo(0, s * 0.35);
+              ctx.stroke();
+
+              ctx.restore();
+            } else {
+              // ---- 翱翔形态：双翼挥毫，水墨舒展 ----
+              ctx.save();
+              ctx.translate(b.x, b.y);
+              ctx.globalAlpha = 0.85 * appear;
+
+              // 双翼：水墨弧线展翅
+              ctx.beginPath();
+              ctx.moveTo(-s * 1.15 * dir, -flap * s * 0.9);
+              ctx.quadraticCurveTo(-s * 0.4 * dir, s * 0.22, 0, 0);
+              ctx.quadraticCurveTo(s * 0.4 * dir, s * 0.22, s * 1.15 * dir, -flap * s * 0.9);
+              ctx.lineWidth = 2.4;
+              ctx.strokeStyle = rgb(C.bird);
+              ctx.stroke();
+
+              // 翼羽飞白层
+              ctx.beginPath();
+              ctx.moveTo(-s * 1.05 * dir, -flap * s * 0.72);
+              ctx.quadraticCurveTo(-s * 0.35 * dir, s * 0.15, 0, 0);
+              ctx.quadraticCurveTo(s * 0.35 * dir, s * 0.15, s * 1.05 * dir, -flap * s * 0.72);
+              ctx.lineWidth = 1.2;
+              ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+              ctx.stroke();
+
+              // 流线身躯与尖喙
+              ctx.beginPath();
+              ctx.ellipse(0, 0, s * 0.45, s * 0.2, Math.atan2(b.vy, b.vx), 0, TAU);
+              ctx.fillStyle = rgb(C.bird);
+              ctx.fill();
+
+              // 头部微突
+              const ang = Math.atan2(b.vy, b.vx);
+              ctx.beginPath();
+              ctx.arc(Math.cos(ang) * s * 0.42, Math.sin(ang) * s * 0.42, s * 0.16, 0, TAU);
+              ctx.fillStyle = rgb(C.bird);
+              ctx.fill();
+
+              // 尾羽分叉
+              ctx.beginPath();
+              ctx.moveTo(-Math.cos(ang) * s * 0.38, -Math.sin(ang) * s * 0.38);
+              ctx.lineTo(-Math.cos(ang) * s * 0.85 - Math.sin(ang) * s * 0.18, -Math.sin(ang) * s * 0.85 + Math.cos(ang) * s * 0.18);
+              ctx.moveTo(-Math.cos(ang) * s * 0.38, -Math.sin(ang) * s * 0.38);
+              ctx.lineTo(-Math.cos(ang) * s * 0.85 + Math.sin(ang) * s * 0.18, -Math.sin(ang) * s * 0.85 - Math.cos(ang) * s * 0.18);
+              ctx.lineWidth = 1.6;
+              ctx.strokeStyle = rgb(C.bird);
+              ctx.stroke();
+
+              ctx.restore();
+            }
+          }
+          ctx.restore();
+          ctx.globalAlpha = 1;
+        }
+
+        /* ==========================================================================
+           13 · 绘制：粒子（四种形态之间连续过渡）
+           ========================================================================== */
+
+        function updateParticles(dt, p, C) {
+          const shape = clamp((p - 0.08) / 0.8) * 3;   // 0 尘絮 → 3 花瓣
+          const s = shape;
+          for (let i = 0; i < PARTICLES.length; i++) {
+            const q = PARTICLES[i];
+            const bias = clamp(s + q.bias * 0.4, 0, 3);
+            const seg = Math.min(2, Math.floor(bias));
+            const t = clamp(bias - seg);
+
+            // 两段形态的运动参数插值
+            const buoy = [0.35, -0.5, -0.15, 0.75][seg] * (1 - t) + [0.35, -0.5, -0.15, 0.75][seg + 1] * t;
+            const drift = (q.windK * 0.6 + 0.4) * (1 + s * 0.25);
+            q.vx += (-wind.x * 46 * drift - q.vx * 1.4) * dt;
+            q.vy += (buoy * 12 * q.z + wind.y * 26 * drift - q.vy * 1.4) * dt;
+            q.x += q.vx * dt + Math.sin(state.time * 0.7 + q.phase) * dt * 6;
+            q.y += q.vy * dt;
+            q.rot += q.spin * dt;
+
+            const m = 60;
+            if (q.x < -m) q.x = view.w + m;
+            if (q.x > view.w + m) q.x = -m;
+            if (q.y < -m) q.y = view.h + m;
+            if (q.y > view.h + m) q.y = -m;
+          }
+          return { shape, seg: Math.min(2, Math.floor(shape)), t: clamp(shape - Math.min(2, Math.floor(shape))) };
+        }
+
+        function drawParticles(info, back, C) {
+          if (!info) return;
+          const { shape, seg, t } = info;
+          ctx.save();
+          for (let i = 0; i < PARTICLES.length; i++) {
+            if ((i % 2 === 0) !== back) continue;
+            const q = PARTICLES[i];
+            const bias = clamp(shape + q.bias * 0.4, 0, 3);
+            const si = Math.min(2, Math.floor(bias));
+            const st = clamp(bias - si);
+
+            const rad = lerp([1.1, 2.3, 1.7, 5.2][si], [1.1, 2.3, 1.7, 5.2][si + 1], st) * q.z;
+            const alpha = lerp([0.3, 0.46, 0.5, 0.55][si], [0.3, 0.46, 0.5, 0.55][si + 1], st);
+            const petal = clamp(st + (si === 2 ? 0 : 0));   // 花瓣权重
+            const colour = rgb(C.dust);
+
+            // 视差：粒子也有自己的远近
+            const px = q.x + par.x * q.z * 0.5;
+            const py = q.y + par.y * q.z * 0.5;
+            ctx.globalAlpha = alpha;
+
+            if (si === 2 || (si === 1 && st > 0.5)) {
+              // 光点：中心亮、外圈扩散
+              const g = ctx.createRadialGradient(px, py, 0, px, py, rad * 3.4);
+              g.addColorStop(0, rgba(C.dust, 0.85));
+              g.addColorStop(0.4, rgba(C.dust, 0.22));
+              g.addColorStop(1, rgba(C.dust, 0));
+              ctx.fillStyle = g;
+              ctx.beginPath();
+              ctx.arc(px, py, rad * 3.4, 0, TAU);
+              ctx.fill();
+            } else if (petal > 0.5 && si >= 2) {
+              // 花瓣：旋转的椭圆
+              ctx.save();
+              ctx.translate(px, py);
+              ctx.rotate(q.rot);
+              ctx.beginPath();
+              ctx.ellipse(0, 0, rad * 1.5, rad * 0.62, 0, 0, TAU);
+              ctx.fillStyle = rgb(C.dust);
+              ctx.fill();
+              ctx.restore();
+            } else {
+              ctx.beginPath();
+              ctx.arc(px, py, rad, 0, TAU);
+              ctx.fillStyle = colour;
+              ctx.fill();
+            }
+          }
+          ctx.restore();
+          ctx.globalAlpha = 1;
+        }
+
+        /* ==========================================================================
+           14 · 种子：破土之前的主角
+           ========================================================================== */
+
+        function drawSeed(p, C, time) {
+          const alpha = clamp(1 - (p - 0.1) / 0.16);
+          if (alpha <= 0.01) return;
+          const breathe = 1 + Math.sin(time * 1.35) * 0.05;
+          const x = 0, y = 4;
+          ctx.save();
+          ctx.globalCompositeOperation = 'source-over';
+          ctx.globalAlpha = alpha;
+          // 种子的微光
+          const g = ctx.createRadialGradient(x, y, 0, x, y, 78 * breathe);
+          g.addColorStop(0, rgba(C.dust, 0.36));
+          g.addColorStop(0.4, rgba(C.dust, 0.12));
+          g.addColorStop(1, rgba(C.dust, 0));
+          ctx.fillStyle = g;
+          ctx.beginPath();
+          ctx.arc(x, y, 78 * breathe, 0, TAU);
+          ctx.fill();
+          // 种子本体
+          ctx.save();
+          ctx.translate(x, y);
+          ctx.rotate(Math.sin(time * 0.4) * 0.08);
+          ctx.beginPath();
+          ctx.ellipse(0, 0, 11 * breathe, 7.4 * breathe, 0.35, 0, TAU);
+          ctx.fillStyle = rgba(C.trunkLit, 0.85);
+          ctx.fill();
+          ctx.lineWidth = 1;
+          ctx.strokeStyle = rgba(C.trunk, 0.5);
+          ctx.stroke();
+          ctx.restore();
+          ctx.restore();
+          ctx.globalAlpha = 1;
+        }
+
+        /** 初萌嫩芽：破土初现时的两瓣水彩子叶，萌发天真生意 */
+        function drawSprout(p, C, time) {
+          if (p < 0.17 || p > 0.42) return;
+          const k = clamp((p - 0.18) / 0.14);
+          const fade = clamp(1 - (p - 0.32) / 0.1);
+          if (k <= 0.01 || fade <= 0.01) return;
+          const open = backOut(k, 1.8);
+          const seg0 = TREE.segs[0];
+          const k0 = growthEase(clamp((p - seg0.t0) / seg0.dur));
+          const P = segPoints(seg0);
+          const tip = quadAt(P, k0);
+
+          ctx.save();
+          ctx.globalCompositeOperation = 'multiply';
+          ctx.globalAlpha = 0.88 * fade;
+          // 左右两枚小嫩瓣
+          for (let side = -1; side <= 1; side += 2) {
+            const a = -Math.PI / 2 + side * (0.68 * open) + Math.sin(time * 2.2 + side) * 0.08;
+            const len = 20 * open;
+            const tx = tip.x + Math.cos(a) * len;
+            const ty = tip.y + Math.sin(a) * len;
+            const cax = tip.x + Math.cos(a - side * 0.45) * (len * 0.65);
+            const cay = tip.y + Math.sin(a - side * 0.45) * (len * 0.65);
+            const cbx = tip.x + Math.cos(a + side * 0.45) * (len * 0.65);
+            const cby = tip.y + Math.sin(a + side * 0.45) * (len * 0.65);
+
+            ctx.beginPath();
+            ctx.moveTo(tip.x, tip.y);
+            ctx.quadraticCurveTo(cax, cay, tx, ty);
+            ctx.quadraticCurveTo(cbx, cby, tip.x, tip.y);
+            ctx.fillStyle = rgb(C.leaf[1]);
+            ctx.fill();
+
+            // 叶脉极细轻勾
+            ctx.beginPath();
+            ctx.moveTo(tip.x, tip.y);
+            ctx.lineTo(tx, ty);
+            ctx.lineWidth = 0.8;
+            ctx.strokeStyle = rgb(C.leaf[0]);
+            ctx.stroke();
+          }
+          ctx.restore();
+          ctx.globalAlpha = 1;
+        }
+
+        /* ==========================================================================
+           15 · 主渲染循环
+           ========================================================================== */
+
+        let last = performance.now();
+        let frameAcc = 0, frameCount = 0, slowStreak = 0;
+
+        function frame(now) {
+          const rawDt = (now - last) / 1000;
+          last = now;
+          if (state.paused) { requestAnimationFrame(frame); return; }
+          const dt = Math.min(0.05, Math.max(0.0005, rawDt));
+          state.time += dt;
+
+          // 进度平滑跟随：滚动是离散事件，生长必须是连续的
+          const follow = reduceMotion ? 1 : 1 - Math.pow(0.0025, dt);
+          const prevP = state.p;
+          state.p += (state.targetP - state.p) * follow;
+          if (Math.abs(state.targetP - state.p) < 0.00012) state.p = state.targetP;
+          const p = state.p;
+          const growthRate = Math.abs(p - prevP) / dt;
+
+          const C = climateAt(p);
+          readCam(p);
+          cam.s = view.fit * cam.zoom;
+          updateParallax(dt);
+          updateWind(dt);
+          computeSway(wind.x, wind.y, state.time);
+          updateFlock(p, dt, state.time);
+          const pinfo = updateParticles(dt, p, C);
+          audio.update(p, growthRate, dt, C.index);
+
+          // ---- 背景 ----
+          paintBackground(p, C, false);
+          ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
+          ctx.globalAlpha = 1;
+          ctx.globalCompositeOperation = 'source-over';
+          ctx.drawImage(bg, -BG_MARGIN + par.x, -BG_MARGIN + par.y, view.w + BG_MARGIN * 2, view.h + BG_MARGIN * 2);
+
+          // ---- 世界坐标：镜头仿射矩阵 ----
+          ctx.save();
+          ctx.translate(view.w * 0.5 + par.x, view.h * 0.62 + par.y);
+          ctx.scale(cam.s, cam.s);
+          ctx.translate(-cam.x, -cam.y);
+
+          drawParticles(pinfo, true, C);   // 后层粒子
+          drawSeed(p, C, state.time);
+          drawRoots(p, C);
+          drawTree(p, C);
+          drawSprout(p, C, state.time);
+          drawLeaves(p, C, state.time);
+          drawFruits(p, C, state.time);
+          drawNest(p, C, state.time);
+          drawBirds(p, C);
+
+          ctx.restore();
+
+          drawParticles(pinfo, false, C);  // 前层粒子
+
+          // 全幅纸纹：以 soft-light 薄薄叠一层，让树与粒子也落进同一张纸里
+          ctx.globalCompositeOperation = 'soft-light';
+          ctx.globalAlpha = 0.5;
+          ctx.drawImage(paper, 0, 0, view.w, view.h);
+          ctx.globalCompositeOperation = 'source-over';
+          ctx.globalAlpha = 1;
+
+          // ---- 界面 ----
+          updateHud(p, C, dt);
+
+          frameAcc += rawDt; frameCount++;
+          if (frameAcc > 2) {
+            const fps = frameCount / frameAcc;
+            frameAcc = 0; frameCount = 0;
+            if (fps < 40 && view.dpr > 1) { slowStreak++; } else { slowStreak = 0; }
+            if (slowStreak >= 2) {   // 持续低帧率：降像素密度
+              view.dpr = 1;
+              resize();
+              slowStreak = 0;
+            }
+          }
+
+          requestAnimationFrame(frame);
+        }
+
+        /* ==========================================================================
+           16 · 界面同步
+           ========================================================================== */
+
+        let hudTick = 0;
+        let uiIndex = -1;
+        const stageIndexEl = $('stageIndex');
+        const stageNameEl = $('stageName');
+        const chronicleBar = $('chronicleBar');
+        const scrollHint = $('scrollHint');
+
+        function updateHud(p, C, dt) {
+          hudTick++;
+          const si = Math.min(STAGE_COUNT - 1, Math.floor(p * STAGE_COUNT));
+          if (si !== uiIndex) {
+            uiIndex = si;
+            const pal = PALETTES[si];
+            stageIndexEl.textContent = String(si + 1).padStart(2, '0');
+            stageNameEl.textContent = `${pal.name} / ${pal.en}`;
+            showPoem(si);
+          }
+          if (hudTick % 4 === 0) {
+            chronicleBar.style.transform = `scaleX(${p.toFixed(4)})`;
+            const root = document.documentElement.style;
+            root.setProperty('--ink', rgb(C.ink));
+            root.setProperty('--accent', rgb(C.accent));
+            const alpha = C.index === 2 ? 0.6 : 0.5;
+            root.setProperty('--muted', rgba(C.ink, alpha));
+            root.setProperty('--faint', rgba(C.ink, 0.34));
+            root.setProperty('--line', rgba(C.ink, 0.18));
+            document.body.style.background = rgb(C.sky[1]);
+          }
+          scrollHint.style.opacity = p > 0.02 ? '0' : '1';
+        }
+
+        /* ==========================================================================
+           17 · 事件与启动
+           ========================================================================== */
+
+        function resize() {
+          view.w = window.innerWidth;
+          view.h = window.innerHeight;
+          if (view.dpr > (window.devicePixelRatio || 1)) view.dpr = Math.min(2, window.devicePixelRatio || 1);
+          view.fit = clamp(Math.min(view.w / 1280, view.h / 880) * 1.16, 0.42, 1.5);
+
+          canvas.width = Math.round(view.w * view.dpr);
+          canvas.height = Math.round(view.h * view.dpr);
+          canvas.style.width = view.w + 'px';
+          canvas.style.height = view.h + 'px';
+
+          buildPaperTexture(view.w * 1.15, view.h * 1.15);
+          buildParticles();
+          bgKey = -1;
+          bg.width = 0;
+          paintBackground(state.p, climateAt(state.p), true);
+          ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
+        }
+
+        function readScroll() {
+          const max = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
+          state.targetP = clamp(window.scrollY / max);
+        }
+
+        window.addEventListener('scroll', readScroll, { passive: true });
+
+        window.addEventListener(
+          'pointermove',
+          (e) => feedWind(e.clientX, e.clientY, 1 / 60),
+          { passive: true }
+        );
+
+        window.addEventListener('resize', () => {
+          view.dpr = Math.min(2, window.devicePixelRatio || 1);
+          resize();
+          readScroll();
+        });
+
+        document.addEventListener('visibilitychange', () => {
+          state.paused = document.hidden;
+          if (document.hidden) {
+            if (audio.ready && audio.on) audio.master.gain.setTargetAtTime(0, audio.ac.currentTime, 0.3);
+          } else {
+            last = performance.now();
+            if (audio.ready && audio.on) audio.master.gain.setTargetAtTime(0.62, audio.ac.currentTime, 1.0);
+          }
+        });
+
+        window.addEventListener('keydown', (e) => {
+          if (e.key === 'm' || e.key === 'M') toggleAudio();
+          if (e.key === 'f' || e.key === 'F') toggleFullscreen();
+        });
+
+        const audioBtn = $('audioBtn');
+        const fullBtn = $('fullBtn');
+        const intro = $('intro');
+        const beginBtn = $('beginBtn');
+
+        function toggleAudio() {
+          const next = !state.soundOn;
+          state.soundOn = next;
+          audio.setEnabled(next);
+          audioBtn.setAttribute('aria-pressed', String(next));
+        }
+
+        async function toggleFullscreen() {
+          try {
+            if (document.fullscreenElement) await document.exitFullscreen();
+            else await document.documentElement.requestFullscreen();
+          } catch (err) {
+            /* 浏览器拒绝全屏时静默降级 */
+          }
+        }
+
+        audioBtn.addEventListener('click', toggleAudio);
+        fullBtn.addEventListener('click', toggleFullscreen);
+
+        beginBtn.addEventListener('click', async () => {
+          state.started = true;
+          state.locked = false;
+          document.body.classList.remove('locked');
+          window.scrollTo(0, 0);
+          toggleAudio();
+          state.soundOn = true;
+          audioBtn.setAttribute('aria-pressed', 'true');
+          try { await document.documentElement.requestFullscreen(); } catch (err) { /* 忽略 */ }
+          intro.classList.add('gone');
+          window.setTimeout(() => intro.remove(), 1700);
+          readScroll();
+        });
+
+        // 开场：先渲染静止的画面（种子在土里呼吸），滚动被锁定
+        resize();
+        buildFlock();
+        showPoem(0);
+        paintBackground(0, climateAt(0), true);
+        requestAnimationFrame(frame);
+      })();
+    </script>
+  </body>
+</html>
