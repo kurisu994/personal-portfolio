@@ -1,62 +1,62 @@
 {
   "title": "拾羽集",
   "tagline": "把远方折成翅膀，把此刻交还给风。",
-  "description": "每件作品两种实现：一边刻意不用任何第三方依赖，一边建立在现代前端工具链之上。",
+  "description": "以代码描绘自然，让迁徙、生长与星光成为可以交互的风景。每件作品保留两种实现，探索不同技术路径下的表达。",
   "works": [
     {
       "route": "migration",
       "name": "候鸟 · MIGRATION",
       "variant": "简易版",
-      "summary": "零第三方依赖的单文件实现。全部画面由 Canvas 2D 手写，配乐以 Base64 内嵌，运行时不发起任何网络请求。",
+      "summary": "跟随折纸候鸟沿河远行，穿过雾境、暮色与雪夜。以原生 Canvas 2D 手绘沿途风景，将画面与配乐收进一个文件。",
       "stack": "原生 JavaScript · Canvas 2D · WebAudio"
     },
     {
       "route": "migration-showcase",
       "name": "候鸟 · MIGRATION",
       "variant": "工程版",
-      "summary": "基于 React 与 Three.js 的工程化实现。程序化地形、连续气候锋面、十六个镜位的导演系统，并附带四组自动化验收脚本。",
+      "summary": "在不断延伸的三维河谷中与候鸟同行，让指尖化作风，或把视线交给自动运镜。气候沿途流转，每次起飞都有不同的风景。",
       "stack": "React · TypeScript · Three.js · Rsbuild"
     },
     {
       "route": "patina",
       "name": "苔痕 · PATINA",
       "variant": "简易版",
-      "summary": "零第三方依赖的单文件实现。反应扩散由 Float32 场手写，纸墨色阶预计算成查找表，运行时不发起任何网络请求。",
+      "summary": "点一下播种，看苔痕从零散斑点长成迷宫与珊瑚，再被一圈水渍洗回纸面。以单文件呈现反应扩散的生长，安静地循环往复。",
       "stack": "原生 JavaScript · Canvas 2D · 反应扩散"
     },
     {
       "route": "patina-showcase",
       "name": "苔痕 · PATINA",
       "variant": "工程版",
-      "summary": "基于 React 与 WebGL2 的工程化实现。双 32 位浮点纹理 ping-pong、纸墨色阶与纸纹后处理，附带离线数值验收与真实浏览器视觉验收。",
+      "summary": "在暖纸上播种、涂抹，任苔绿与墨色缓慢蔓延。由 GPU 推演生长，叠加纸纹与墨晕，还可开启随生长变化的合成音景。",
       "stack": "React · TypeScript · WebGL2 · Rsbuild"
     },
     {
       "route": "arbor",
       "name": "一木 · ARBOR",
       "variant": "简易版",
-      "summary": "零第三方依赖的单文件实现。落一粒种子，随滚动看它生根、展叶与结果；全部画面由 Canvas 2D 手写，运行时不发起任何网络请求。",
+      "summary": "落下一粒种子，随滚动看它生根、展叶与结果，再向上回到最初。用原生 Canvas 2D 将一棵树的生长收进单文件画卷。",
       "stack": "原生 JavaScript · Canvas 2D · WebAudio"
     },
     {
       "route": "arbor-showcase",
       "name": "一木 · ARBOR",
       "variant": "工程版",
-      "summary": "基于 React 与 Three.js 的工程化实现。534 条根枝、2566 片实例叶与五只纸鸟，水彩颜料着色器配可逆的滚动生长，附带自动化验收脚本。",
+      "summary": "让一棵水彩质感的三维树随滚动生长，直到果熟鸟归。轻轻拖动画面，换个角度看枝叶与纸鸟，也可以倒回重看这段旅程。",
       "stack": "React · TypeScript · Three.js · GSAP · Rsbuild"
     },
     {
       "route": "star-trails",
       "name": "星轨 · STAR TRAILS",
       "variant": "简易版",
-      "summary": "零第三方依赖的单文件实现。基于真实 Yale BSC5 亮星表与 Meeus 天文算法，纯 Rust 编译为 WebAssembly，在 Canvas 2D 上解析推演一夜星轨弧线，断网可用。",
+      "summary": "选一个地点与日期，让真实星表中的星辰画出一夜的弧线。无需前端框架，由 WASM 在浏览器本地计算，再以 Canvas 2D 绘出星轨。",
       "stack": "Rust (WASM) · 原生 JavaScript · Canvas 2D"
     },
     {
       "route": "star-trails-showcase",
       "name": "星轨 · STAR TRAILS",
       "variant": "工程版",
-      "summary": "基于 React 与 WebGL2 的工程化实现。复用同一份 WASM 天文内核，双 FBO 浮点纹理加性混合累积曝光与高斯光晕后处理，附带离线天文精度验收套件。",
+      "summary": "选定一处夜空，看星光随时间累积，在长曝光中逐渐显影。与简易版共享天文内核，以 WebGL2 呈现星轨叠加与柔和光晕。",
       "stack": "React · TypeScript · WebGL2 · Rust (WASM) · Rsbuild"
     }
   ]

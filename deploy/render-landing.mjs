@@ -22,6 +22,9 @@ if (works.length === 0) {
   throw new Error('deploy/works.json 中没有任何作品，站点入口页将为空');
 }
 
+// 同名作品的不同实现分别展示，但作品总数只计一次。
+const workCount = new Set(works.map((work) => work.name)).size;
+
 const cards = works.map((work, index) => {
   const position = String(index + 1).padStart(2, '0');
   return `        <li class="work">
@@ -230,7 +233,7 @@ const document = `<!doctype html>
 ${cards}
       </ul>
 
-      <footer>共 ${works.length} 件作品 · 画面、配乐与诗歌文本保留所有权利 · <a href="./LICENSE">源代码采用 MIT 许可</a></footer>
+      <footer>${workCount} 件作品 · ${works.length} 种实现 · 画面、配乐与诗歌文本保留所有权利 · <a href="./LICENSE">源代码采用 MIT 许可</a></footer>
     </div>
   </body>
 </html>
