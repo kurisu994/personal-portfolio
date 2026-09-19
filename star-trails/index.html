@@ -1,0 +1,927 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#12151c" />
+    <meta name="description" content="星轨 · STAR TRAILS 简易版。基于真实 BSC5 星表与 Meeus 天文算法的 WebAssembly 弧线推演。" />
+    <title>星轨 · STAR TRAILS（简易版）</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --night: #0e1117;
+        --night-sky: #131722;
+        --paper: #f6f2e9;
+        --ink: #2b2823;
+        --muted: rgba(246, 242, 233, 0.6);
+        --faint: rgba(246, 242, 233, 0.3);
+        --line: rgba(246, 242, 233, 0.12);
+        --gold: #d4a359;
+        --serif: "Songti SC", "Noto Serif CJK SC", "STSong", "SimSun", Georgia, serif;
+        --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      }
+
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+
+      html, body {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: var(--night);
+        color: var(--paper);
+        font-family: var(--sans);
+        user-select: none;
+        -webkit-user-select: none;
+      }
+
+      body {
+        overscroll-behavior: none;
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      #stage {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+
+      /* 纸质噪点背景微层 */
+      .grain {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        opacity: 0.035;
+        background-image: radial-gradient(#fff 1px, transparent 0);
+        background-size: 24px 24px;
+      }
+
+      .hud {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: clamp(16px, 3vw, 36px);
+        pointer-events: none;
+      }
+
+      .hud > * { pointer-events: auto; }
+
+      header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 16px;
+      }
+
+      .brand {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .title {
+        font-family: var(--serif);
+        font-size: clamp(22px, 3.2vw, 34px);
+        font-weight: 500;
+        letter-spacing: 0.16em;
+        line-height: 1.15;
+        color: var(--paper);
+        text-shadow: 0 2px 12px rgba(0,0,0,0.8);
+      }
+
+      .title__en {
+        font-family: var(--sans);
+        font-size: 11px;
+        letter-spacing: 0.36em;
+        color: var(--faint);
+        text-transform: uppercase;
+      }
+
+      .tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 4px;
+        font-size: 11px;
+        color: var(--muted);
+        font-family: var(--serif);
+      }
+
+      .tag::before {
+        content: "";
+        display: inline-block;
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--gold);
+        box-shadow: 0 0 8px var(--gold);
+      }
+
+      /* 悬浮控制面板 */
+      .panel {
+        background: rgba(18, 23, 34, 0.72);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 12px 16px;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 14px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+      }
+
+      .field {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .field label {
+        font-size: 10px;
+        letter-spacing: 0.1em;
+        color: var(--muted);
+        font-family: var(--serif);
+      }
+
+      select, input[type="date"], input[type="number"] {
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid var(--line);
+        color: var(--paper);
+        border-radius: 4px;
+        padding: 5px 8px;
+        font-size: 12px;
+        outline: none;
+        transition: border-color 0.2s;
+        font-family: inherit;
+      }
+
+      select option {
+        background: #191d26;
+        color: #fff;
+      }
+
+      select:focus, input:focus {
+        border-color: var(--gold);
+      }
+
+      /* 时间轴与控制中心 */
+      .bottom-bar {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .timeline-wrap {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        width: 100%;
+        max-width: 680px;
+      }
+
+      .btn-play {
+        background: rgba(212, 163, 89, 0.15);
+        border: 1px solid var(--gold);
+        color: var(--paper);
+        width: 34px;
+        height: 34px;
+        border-radius: 50%;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+      }
+
+      .btn-play:hover {
+        background: var(--gold);
+        color: #0e1117;
+      }
+
+      .slider-track {
+        flex: 1;
+        position: relative;
+        display: flex;
+        align-items: center;
+      }
+
+      input[type="range"] {
+        width: 100%;
+        -webkit-appearance: none;
+        appearance: none;
+        background: transparent;
+        cursor: pointer;
+      }
+
+      input[type="range"]::-webkit-slider-runnable-track {
+        height: 4px;
+        background: var(--line);
+        border-radius: 2px;
+      }
+
+      input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        background: var(--paper);
+        margin-top: -5px;
+        box-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
+      }
+
+      .time-info {
+        font-size: 12px;
+        color: var(--muted);
+        font-variant-numeric: tabular-nums;
+        font-family: var(--sans);
+        min-width: 90px;
+        text-align: right;
+      }
+
+      /* 底部诗卡与信息 */
+      .footer-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        gap: 20px;
+      }
+
+      .poem-card {
+        max-width: 440px;
+        font-family: var(--serif);
+        line-height: 1.7;
+        font-size: 13px;
+        letter-spacing: 0.08em;
+        color: rgba(246, 242, 233, 0.85);
+        text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9);
+        transition: opacity 0.6s ease;
+      }
+
+      .poem-card .en {
+        margin-top: 4px;
+        font-size: 11px;
+        color: var(--faint);
+        font-family: var(--sans);
+        letter-spacing: 0.04em;
+        line-height: 1.4;
+      }
+
+      .actions {
+        display: flex;
+        gap: 8px;
+      }
+
+      .btn {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid var(--line);
+        color: var(--paper);
+        border-radius: 4px;
+        padding: 6px 12px;
+        font-size: 11px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        transition: all 0.2s;
+        font-family: var(--serif);
+      }
+
+      .btn:hover {
+        background: rgba(255, 255, 255, 0.12);
+        border-color: var(--muted);
+      }
+
+      .btn.active {
+        border-color: var(--gold);
+        color: var(--gold);
+      }
+
+      /* 极昼/极夜提示 */
+      .toast {
+        position: fixed;
+        top: 24px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(212, 163, 89, 0.9);
+        color: #12151c;
+        padding: 6px 16px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 500;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.3s;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+      }
+
+      .toast.show { opacity: 1; }
+
+      @media (max-width: 768px) {
+        .panel { padding: 8px 12px; gap: 8px; }
+        .footer-row { flex-direction: column; align-items: flex-start; }
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="stage"></canvas>
+    <div class="grain"></div>
+
+    <div class="hud">
+      <header>
+        <div class="brand">
+          <h1 class="title">星轨</h1>
+          <span class="title__en">STAR TRAILS</span>
+          <div class="tag">BSC5 亮星表 · WASM 解析计算</div>
+        </div>
+
+        <div class="panel">
+          <div class="field">
+            <label>观测地点</label>
+            <select id="city-select"></select>
+          </div>
+          <div class="field">
+            <label>观测日期</label>
+            <input type="date" id="date-input" min="1900-01-01" max="2100-12-31" />
+          </div>
+          <div class="field">
+            <label>视场角 (FOV)</label>
+            <select id="fov-select">
+              <option value="40">40° 望远端</option>
+              <option value="60" selected>60° 标准天极</option>
+              <option value="85">85° 广角苍穹</option>
+              <option value="110">110° 超广角</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>投影视界</label>
+            <select id="mode-select">
+              <option value="0" selected>天极透视投影</option>
+              <option value="1">全天域立体投影</option>
+            </select>
+          </div>
+        </div>
+      </header>
+
+      <div class="bottom-bar">
+        <div class="timeline-wrap panel">
+          <button id="btn-play" class="btn-play" title="播放 / 暂停">
+            <svg id="play-icon" width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+              <polygon points="5 3 19 12 5 21 5 3"></polygon>
+            </svg>
+          </button>
+          <div class="slider-track">
+            <input type="range" id="time-slider" min="0" max="1" step="0.001" value="0.5" />
+          </div>
+          <div class="time-info" id="time-display">00:00</div>
+          <div class="field" style="margin-left: 6px;">
+            <select id="speed-select" style="padding: 2px 4px; font-size: 11px;">
+              <option value="15">15秒/夜</option>
+              <option value="60" selected>60秒/夜</option>
+              <option value="180">180秒/夜</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="footer-row">
+          <div class="poem-card" id="poem-box">
+            <div class="zh" id="poem-zh">一夜星河倾泻，其实是大地在悄然转身。</div>
+            <div class="en" id="poem-en">A night of pouring stars is but the Earth softly turning.</div>
+          </div>
+
+          <div class="actions">
+            <button class="btn" id="btn-sound" title="环境音">
+              <span>夜风</span>
+            </button>
+            <button class="btn" id="btn-share" title="复制分享链接">
+              <span>分享</span>
+            </button>
+            <button class="btn" id="btn-export" title="导出高分辨率星轨图">
+              <span>导出图片</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script type="module">
+      import init, {
+        compute_night_window,
+        compute_star_positions,
+        compute_trail_arcs,
+      } from "./pkg/star_trails.js";
+
+      // 1. 内置代表性城市表 (纬度 N为正, 经度 E为正)
+      const CITIES = [
+        { name: "北京 (北极同心圆)", lat: 39.9042, lon: 116.4074 },
+        { name: "雷克雅未克 (极北高纬)", lat: 64.1466, lon: -21.9426 },
+        { name: "漠河 (中国极北)", lat: 52.9717, lon: 122.5378 },
+        { name: "敦煌 (大漠星野)", lat: 40.1421, lon: 94.6619 },
+        { name: "拉萨 (雪域高原)", lat: 29.6525, lon: 91.1721 },
+        { name: "上海 (东海之滨)", lat: 31.2304, lon: 121.4737 },
+        { name: "曾母暗沙 (接近赤道)", lat: 3.9667, lon: 112.2833 },
+        { name: "新加坡 (赤道平直轨)", lat: 1.3521, lon: 103.8198 },
+        { name: "莫纳克亚 (夏威夷观星)", lat: 19.8206, lon: -155.4681 },
+        { name: "悉尼 (南天极旋转)", lat: -33.8688, lon: 151.2093 },
+        { name: "阿塔卡马 (智利极净星空)", lat: -23.8634, lon: -69.1328 },
+        { name: "乌斯怀亚 (世界的尽头)", lat: -54.8019, lon: -68.3030 },
+        { name: "南极极点附近 (天顶同心圆)", lat: -89.0, lon: 0.0 },
+      ];
+
+      // 2. 双语短诗 10 段（主题：等待、星移、天极不动）
+      const POEMS = [
+        { zh: "一夜星河倾泻，其实是大地在悄然转身。", en: "A night of pouring stars is but the Earth softly turning." },
+        { zh: "唯有那不动的天极，安放着整夜的耐心。", en: "Only at the unmoving pole rests the quiet patience of the night." },
+        { zh: "群星从不见我们，我们却以目光为它们画圆。", en: "The stars never look upon us; yet with our gaze, we trace their circles." },
+        { zh: "风吹过地平线的群山，带走光阴，留下弧线。", en: "Winds brush over the silhouettes of ridges, taking time and leaving arcs." },
+        { zh: "千万年前启程的光，在纸上映出一道浅白。", en: "Light dispatched millions of years ago settles as a faint stroke upon the paper." },
+        { zh: "黑夜并不是盲目的，它是眼睛适应永恒所必需的深沉。", en: "Night is not blind; it is the depth sight requires to fathom eternity." },
+        { zh: "当世人沉入梦乡，天空正以匀速写下一册圆弧的诗集。", en: "While the world slumbers, the sky writes volumes of circular verses at an unvarying pace." },
+        { zh: "山川静默如墨染，星轨奔流似银弦。", en: "Mountains stand silent like grounded ink, while trails stream as silver strings." },
+        { zh: "所有看似静止的眺望，都早已身在回旋之中。", en: "Every gaze that appears stationary is already woven into the great rotation." },
+        { zh: "晨光将至，把深邃的圆弧还给白昼的无声。", en: "Dawn approaches, returning the deep concentric curves to the silence of day." }
+      ];
+
+      // 3. 应用状态
+      const state = {
+        lat: 39.9042,
+        lon: 116.4074,
+        dateStr: new Date().toISOString().slice(0, 10),
+        fovDeg: 60,
+        mode: 0, // 0: 透视, 1: 全天域
+        progress: 0.4, // 0 ~ 1 曝光进程
+        isPlaying: true,
+        speedDuration: 60, // 秒/整夜
+        poemIndex: 0,
+        soundEnabled: false,
+      };
+
+      // 4. DOM 引用
+      const canvas = document.getElementById("stage");
+      const ctx = canvas.getContext("2d");
+      const citySelect = document.getElementById("city-select");
+      const dateInput = document.getElementById("date-input");
+      const fovSelect = document.getElementById("fov-select");
+      const modeSelect = document.getElementById("mode-select");
+      const btnPlay = document.getElementById("btn-play");
+      const timeSlider = document.getElementById("time-slider");
+      const timeDisplay = document.getElementById("time-display");
+      const speedSelect = document.getElementById("speed-select");
+      const poemZh = document.getElementById("poem-zh");
+      const poemEn = document.getElementById("poem-en");
+      const poemBox = document.getElementById("poem-box");
+      const btnSound = document.getElementById("btn-sound");
+      const btnShare = document.getElementById("btn-share");
+      const btnExport = document.getElementById("btn-export");
+      const toastEl = document.getElementById("toast");
+      const playIcon = document.getElementById("play-icon");
+
+      let wasmReady = false;
+      let nightWindow = null; // [sunset_jd, sunrise_jd, tw_start, tw_end]
+      let trailBuffer = null; // f32 坐标数组
+      let animFrameId = null;
+      let lastTime = performance.now();
+      let dpr = window.devicePixelRatio || 1;
+      let audioCtx = null;
+      let noiseNode = null;
+
+      // 5. 初始化与参数绑定
+      function parseUrlParams() {
+        const p = new URLSearchParams(window.location.search);
+        if (p.has("lat")) state.lat = parseFloat(p.get("lat"));
+        if (p.has("lon")) state.lon = parseFloat(p.get("lon"));
+        if (p.has("date")) state.dateStr = p.get("date");
+        if (p.has("fov")) state.fovDeg = parseFloat(p.get("fov"));
+        if (p.has("mode")) state.mode = parseInt(p.get("mode"), 10);
+      }
+
+      function updateUrl() {
+        const p = new URLSearchParams();
+        p.set("lat", state.lat.toFixed(4));
+        p.set("lon", state.lon.toFixed(4));
+        p.set("date", state.dateStr);
+        p.set("fov", state.fovDeg.toString());
+        p.set("mode", state.mode.toString());
+        window.history.replaceState(null, "", "?" + p.toString());
+      }
+
+      function showToast(msg) {
+        toastEl.textContent = msg;
+        toastEl.classList.add("show");
+        setTimeout(() => toastEl.classList.remove("show"), 2600);
+      }
+
+      function setupUI() {
+        // 填充城市
+        CITIES.forEach((c, idx) => {
+          const opt = document.createElement("option");
+          opt.value = idx;
+          opt.textContent = c.name;
+          citySelect.appendChild(opt);
+        });
+
+        // 默认匹配最近城市
+        let matchedCityIdx = 0;
+        let minDiff = 9999;
+        CITIES.forEach((c, idx) => {
+          const diff = Math.hypot(c.lat - state.lat, c.lon - state.lon);
+          if (diff < minDiff) { minDiff = diff; matchedCityIdx = idx; }
+        });
+        citySelect.value = matchedCityIdx;
+
+        dateInput.value = state.dateStr;
+        fovSelect.value = state.fovDeg;
+        modeSelect.value = state.mode;
+
+        citySelect.addEventListener("change", (e) => {
+          const c = CITIES[e.target.value];
+          state.lat = c.lat;
+          state.lon = c.lon;
+          recomputeNight();
+          updateUrl();
+        });
+
+        dateInput.addEventListener("change", (e) => {
+          if (e.target.value) {
+            state.dateStr = e.target.value;
+            recomputeNight();
+            updateUrl();
+          }
+        });
+
+        fovSelect.addEventListener("change", (e) => {
+          state.fovDeg = parseFloat(e.target.value);
+          updateUrl();
+        });
+
+        modeSelect.addEventListener("change", (e) => {
+          state.mode = parseInt(e.target.value, 10);
+          updateUrl();
+        });
+
+        btnPlay.addEventListener("click", () => {
+          state.isPlaying = !state.isPlaying;
+          updatePlayIcon();
+        });
+
+        timeSlider.addEventListener("input", (e) => {
+          state.progress = parseFloat(e.target.value);
+        });
+
+        speedSelect.addEventListener("change", (e) => {
+          state.speedDuration = parseFloat(e.target.value);
+        });
+
+        btnSound.addEventListener("click", toggleSound);
+
+        btnShare.addEventListener("click", () => {
+          navigator.clipboard.writeText(window.location.href);
+          showToast("已将分享链接复制到剪贴板");
+        });
+
+        btnExport.addEventListener("click", exportPNG);
+
+        // 诗歌轮播定时器（20 秒更新一次）
+        setInterval(() => {
+          state.poemIndex = (state.poemIndex + 1) % POEMS.length;
+          poemBox.style.opacity = "0";
+          setTimeout(() => {
+            poemZh.textContent = POEMS[state.poemIndex].zh;
+            poemEn.textContent = POEMS[state.poemIndex].en;
+            poemBox.style.opacity = "1";
+          }, 600);
+        }, 22000);
+      }
+
+      function updatePlayIcon() {
+        if (state.isPlaying) {
+          playIcon.innerHTML = `<rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect>`;
+        } else {
+          playIcon.innerHTML = `<polygon points="5 3 19 12 5 21 5 3"></polygon>`;
+        }
+      }
+
+      // 6. 天文时间窗口重算
+      function recomputeNight() {
+        if (!wasmReady) return;
+        const [year, month, day] = state.dateStr.split("-").map((v) => parseInt(v, 10));
+        const win = compute_night_window(state.lat, state.lon, year, month, day);
+        nightWindow = {
+          sunset: win[0],
+          sunrise: win[1],
+          tw_start: win[2],
+          tw_end: win[3],
+        };
+
+        // 检查极昼 / 极夜极端现象
+        const nightDurationHours = (nightWindow.sunrise - nightWindow.sunset) * 24;
+        if (nightDurationHours <= 0.5) {
+          showToast("当前日期该地处于极昼或暮光期，黑夜极短");
+        } else if (nightDurationHours >= 23.5) {
+          showToast("当前日期该地处于极夜，整日星空回旋");
+        }
+      }
+
+      // 7. WebAudio 程序化自然夜风
+      function toggleSound() {
+        if (!audioCtx) {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          audioCtx = new AudioContext();
+
+          // 粉红/低通滤波噪声模拟呼啸夜风
+          const bufferSize = audioCtx.sampleRate * 2;
+          const noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+          const output = noiseBuffer.getChannelData(0);
+          let b0 = 0, b1 = 0, b2 = 0;
+          for (let i = 0; i < bufferSize; i++) {
+            const white = Math.random() * 2 - 1;
+            b0 = 0.99 * b0 + white * 0.05;
+            b1 = 0.96 * b1 + white * 0.11;
+            b2 = 0.86 * b2 + white * 0.25;
+            output[i] = (b0 + b1 + b2) * 0.18;
+          }
+
+          const whiteNoise = audioCtx.createBufferSource();
+          whiteNoise.buffer = noiseBuffer;
+          whiteNoise.loop = true;
+
+          const filter = audioCtx.createBiquadFilter();
+          filter.type = "lowpass";
+          filter.frequency.value = 260;
+
+          const gain = audioCtx.createGain();
+          gain.gain.value = 0.45;
+
+          whiteNoise.connect(filter);
+          filter.connect(gain);
+          gain.connect(audioCtx.destination);
+          whiteNoise.start();
+
+          noiseNode = { whiteNoise, gain, filter };
+          state.soundEnabled = true;
+          btnSound.classList.add("active");
+        } else {
+          if (audioCtx.state === "suspended") {
+            audioCtx.resume();
+            state.soundEnabled = true;
+            btnSound.classList.add("active");
+          } else {
+            audioCtx.suspend();
+            state.soundEnabled = false;
+            btnSound.classList.remove("active");
+          }
+        }
+      }
+
+      // 8. 响应式画布调整
+      function resize() {
+        dpr = window.devicePixelRatio || 1;
+        const w = window.innerWidth;
+        const h = window.innerHeight;
+        canvas.width = Math.floor(w * dpr);
+        canvas.height = Math.floor(h * dpr);
+      }
+      window.addEventListener("resize", resize);
+
+      // 9. 画面绘制核心
+      // 程序化生成稳定的地平线剪影（山岭与墨色层次）
+      function drawSilhouette(width, height, isStereo) {
+        if (isStereo) {
+          // 立体投影全天模式：圆形画框外的墨黑衬底
+          const cx = width * 0.5;
+          const cy = height * 0.5;
+          const r = Math.min(width, height) * 0.46;
+
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(0, 0, width, height);
+          ctx.arc(cx, cy, r, 0, Math.PI * 2, true);
+          ctx.fillStyle = "#0c0e14";
+          ctx.fill();
+
+          // 墨线地平圈
+          ctx.beginPath();
+          ctx.arc(cx, cy, r, 0, Math.PI * 2);
+          ctx.strokeStyle = "rgba(246, 242, 233, 0.25)";
+          ctx.lineWidth = 1.5 * dpr;
+          ctx.stroke();
+          ctx.restore();
+          return;
+        }
+
+        // 透视投影：底部山峰剪影
+        ctx.save();
+        const baseH = height * 0.82;
+        ctx.beginPath();
+        ctx.moveTo(0, height);
+        ctx.lineTo(0, baseH);
+
+        const steps = 80;
+        for (let i = 0; i <= steps; i++) {
+          const x = (i / steps) * width;
+          // 确定性和谐山峰波
+          const nx = i * 0.12;
+          const peak =
+            Math.sin(nx) * 22 * dpr +
+            Math.cos(nx * 2.3 + 1.2) * 14 * dpr +
+            Math.sin(nx * 5.1) * 6 * dpr;
+          ctx.lineTo(x, baseH - peak);
+        }
+        ctx.lineTo(width, height);
+        ctx.closePath();
+
+        ctx.fillStyle = "#0a0c10";
+        ctx.fill();
+
+        // 地平线微光
+        ctx.beginPath();
+        ctx.moveTo(0, baseH);
+        for (let i = 0; i <= steps; i++) {
+          const x = (i / steps) * width;
+          const nx = i * 0.12;
+          const peak =
+            Math.sin(nx) * 22 * dpr +
+            Math.cos(nx * 2.3 + 1.2) * 14 * dpr +
+            Math.sin(nx * 5.1) * 6 * dpr;
+          ctx.lineTo(x, baseH - peak);
+        }
+        ctx.strokeStyle = "rgba(246, 242, 233, 0.12)";
+        ctx.lineWidth = 1 * dpr;
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      function renderFrame(now) {
+        animFrameId = requestAnimationFrame(renderFrame);
+
+        const delta = (now - lastTime) / 1000;
+        lastTime = now;
+
+        if (state.isPlaying && nightWindow) {
+          state.progress += delta / state.speedDuration;
+          if (state.progress > 1.0) state.progress = 0.0;
+          timeSlider.value = state.progress;
+        }
+
+        if (!nightWindow || !wasmReady) return;
+
+        // 计算当前曝光时间段 [sunset_jd, current_jd]
+        const duration = nightWindow.sunrise - nightWindow.sunset;
+        const currentJd = nightWindow.sunset + duration * state.progress;
+
+        // 格式化当前时间显示
+        const utHours = ((currentJd - Math.floor(currentJd) + 0.5) % 1.0) * 24;
+        const localHours = (utHours + state.lon / 15 + 24) % 24;
+        const hh = Math.floor(localHours).toString().padStart(2, "0");
+        const mm = Math.floor((localHours % 1) * 60).toString().padStart(2, "0");
+        timeDisplay.textContent = `${hh}:${mm}`;
+
+        const width = canvas.width;
+        const height = canvas.height;
+        const cx = width * 0.5;
+        const cy = height * 0.5;
+        const scale = Math.min(width, height) * 0.46;
+
+        // 清屏（夜空深墨微渐变）
+        ctx.fillStyle = "#0c0f16";
+        ctx.fillRect(0, 0, width, height);
+
+        // 调用 Rust WASM 计算轨迹弧线
+        // steps 随曝光长度动态自适应
+        const steps = Math.max(12, Math.floor(64 * state.progress));
+        const maxStars = 1600;
+        const requiredFloats = maxStars * steps * 2;
+        if (!trailBuffer || trailBuffer.length < requiredFloats) {
+          trailBuffer = new Float32Array(requiredFloats);
+        }
+
+        const visibleCount = compute_trail_arcs(
+          (state.lat * Math.PI) / 180,
+          (state.lon * Math.PI) / 180,
+          nightWindow.sunset,
+          currentJd,
+          steps,
+          state.mode,
+          state.fovDeg,
+          trailBuffer
+        );
+
+        // 绘制所有星轨圆弧
+        ctx.save();
+        ctx.lineCap = "round";
+
+        const stride = steps * 2;
+        for (let s = 0; s < visibleCount; s++) {
+          const offset = s * stride;
+
+          // 依据星星序号模拟亮度与星色
+          // 亮星（前120颗）：更粗更亮，带光晕
+          const isBright = s < 120;
+          const alpha = isBright ? 0.85 : 0.45;
+
+          ctx.beginPath();
+          let started = false;
+
+          for (let step = 0; step < steps; step++) {
+            const px = trailBuffer[offset + step * 2];
+            const py = trailBuffer[offset + step * 2 + 1];
+
+            if (isNaN(px) || isNaN(py)) {
+              started = false;
+              continue;
+            }
+
+            // 投影归一化坐标转屏幕像素坐标 (y朝上，屏幕y朝下)
+            const sx = cx + px * scale;
+            const sy = cy - py * scale;
+
+            if (!started) {
+              ctx.moveTo(sx, sy);
+              started = true;
+            } else {
+              ctx.lineTo(sx, sy);
+            }
+          }
+
+          if (isBright) {
+            ctx.strokeStyle = "rgba(240, 244, 255, 0.9)";
+            ctx.lineWidth = 1.6 * dpr;
+          } else {
+            ctx.strokeStyle = `rgba(230, 235, 245, ${alpha})`;
+            ctx.lineWidth = 0.9 * dpr;
+          }
+          ctx.stroke();
+
+          // 绘制当前时刻星点头
+          const headX = trailBuffer[offset + (steps - 1) * 2];
+          const headY = trailBuffer[offset + (steps - 1) * 2 + 1];
+          if (!isNaN(headX) && !isNaN(headY)) {
+            const hx = cx + headX * scale;
+            const hy = cy - headY * scale;
+
+            ctx.beginPath();
+            const dotR = (isBright ? 2.2 : 1.2) * dpr;
+            ctx.arc(hx, hy, dotR, 0, Math.PI * 2);
+            ctx.fillStyle = isBright ? "#ffffff" : "rgba(235, 240, 255, 0.8)";
+            ctx.fill();
+          }
+        }
+        ctx.restore();
+
+        // 叠加前景剪影
+        drawSilhouette(width, height, state.mode === 1);
+      }
+
+      // 10. PNG 导出（支持 2x 离屏超清导出）
+      function exportPNG() {
+        const offCanvas = document.createElement("canvas");
+        const expScale = 2; // 2x 超清导出
+        offCanvas.width = canvas.width * expScale;
+        offCanvas.height = canvas.height * expScale;
+        const offCtx = offCanvas.getContext("2d");
+
+        // 绘制高清图
+        offCtx.drawImage(canvas, 0, 0, offCanvas.width, offCanvas.height);
+
+        // 叠加宣纸水印与铭文
+        offCtx.save();
+        offCtx.font = `${14 * expScale * dpr}px serif`;
+        offCtx.fillStyle = "rgba(246, 242, 233, 0.7)";
+        offCtx.fillText(`星轨 · STAR TRAILS  |  ${state.dateStr}  |  ${citySelect.options[citySelect.selectedIndex].text}`, 40 * expScale, offCanvas.height - 40 * expScale);
+        offCtx.restore();
+
+        const link = document.createElement("a");
+        link.download = `star-trails-${state.dateStr}.png`;
+        link.href = offCanvas.toDataURL("image/png");
+        link.click();
+        showToast("已生成并下载星轨作品图片");
+      }
+
+      // 11. 启动运行
+      async function main() {
+        parseUrlParams();
+        setupUI();
+        resize();
+        updatePlayIcon();
+
+        try {
+          await init();
+          wasmReady = true;
+          recomputeNight();
+          renderFrame(performance.now());
+        } catch (err) {
+          console.error("加载 WASM 失败:", err);
+          showToast("加载 WebAssembly 模块失败，请检查控制台");
+        }
+      }
+
+      main();
+    </script>
+  </body>
+</html>

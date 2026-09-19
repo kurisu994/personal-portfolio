@@ -1,0 +1,43 @@
+{
+  "sidereal_time": [
+    {
+      "description": "Meeus 例 12.a: 1987-04-10 19:21 UT",
+      "year": 1987,
+      "month": 4,
+      "day": 10,
+      "hour": 19.35,
+      "expected_gst_hours": 8.58252489,
+      "tolerance_seconds": 0.1
+    }
+  ],
+  "precession": [
+    {
+      "description": "Meeus 例 21.b: θ Persei 从 J2000.0 至 2028-11-13.19",
+      "ra0_hms": [2, 44, 11.986],
+      "dec0_dms": [49, 13, 42.48],
+      "target_jd_date": [2028, 11, 13, 4.56],
+      "expected_ra_hms": [2, 46, 11.331],
+      "expected_dec_dms": [49, 20, 54.54],
+      "tolerance_arcsec": 36.0
+    }
+  ],
+  "sun_declination": [
+    {
+      "description": "Meeus 例 25.a: 1992-10-13 0h TD",
+      "year": 1992,
+      "month": 10,
+      "day": 13,
+      "hour": 0.0,
+      "expected_dec_deg": -7.78,
+      "tolerance_deg": 0.05
+    }
+  ],
+  "refraction": [
+    {
+      "description": "地平线标准折射约 34.5 角分 (0.575°)",
+      "alt_deg": 0.0,
+      "expected_refraction_deg": 0.575,
+      "tolerance_deg": 0.05
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "name": "star-trails",
+  "version": "0.1.0",
+  "files": [
+    "star_trails_bg.wasm",
+    "star_trails.js",
+    "star_trails.d.ts"
+  ],
+  "module": "star_trails.js",
+  "types": "star_trails.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}
