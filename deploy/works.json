@@ -44,6 +44,20 @@
       "variant": "工程版",
       "summary": "基于 React 与 Three.js 的工程化实现。534 条根枝、2566 片实例叶与五只纸鸟，水彩颜料着色器配可逆的滚动生长，附带自动化验收脚本。",
       "stack": "React · TypeScript · Three.js · GSAP · Rsbuild"
+    },
+    {
+      "route": "star-trails",
+      "name": "星轨 · STAR TRAILS",
+      "variant": "简易版",
+      "summary": "零第三方依赖的单文件实现。基于真实 Yale BSC5 亮星表与 Meeus 天文算法，纯 Rust 编译为 WebAssembly，在 Canvas 2D 上解析推演一夜星轨弧线，断网可用。",
+      "stack": "Rust (WASM) · 原生 JavaScript · Canvas 2D"
+    },
+    {
+      "route": "star-trails-showcase",
+      "name": "星轨 · STAR TRAILS",
+      "variant": "工程版",
+      "summary": "基于 React 与 WebGL2 的工程化实现。复用同一份 WASM 天文内核，双 FBO 浮点纹理加性混合累积曝光与高斯光晕后处理，附带离线天文精度验收套件。",
+      "stack": "React · TypeScript · WebGL2 · Rust (WASM) · Rsbuild"
     }
   ]
 }

@@ -59,6 +59,23 @@ RUN corepack enable && pnpm install --frozen-lockfile
 COPY arbor-showcase/ ./
 RUN pnpm build
 
+# ══ 阶段 1d：星轨工程版构建 ═════════════════════════════════════════
+FROM node:24-alpine AS build-star-trails-showcase
+
+ENV CI=1
+WORKDIR /work
+
+COPY star-trails-showcase/package.json \
+     star-trails-showcase/pnpm-lock.yaml \
+     star-trails-showcase/pnpm-workspace.yaml \
+     ./
+
+RUN corepack enable && pnpm install --frozen-lockfile
+
+COPY star-trails/pkg/ /star-trails/pkg/
+COPY star-trails-showcase/ ./
+RUN pnpm build
+
 # ══ 阶段 2：入口页生成与 HTML 微调 ════════════════════════════════════
 FROM node:24-alpine AS site-entry
 
@@ -70,6 +87,7 @@ RUN node render-landing.mjs > /site/index.html
 COPY --from=build-migration-showcase /work/dist /site/migration-showcase
 COPY --from=build-patina-showcase /work/dist /site/patina-showcase
 COPY --from=build-arbor-showcase /work/dist /site/arbor-showcase
+COPY --from=build-star-trails-showcase /work/dist /site/star-trails-showcase
 
 # 可选：设置 SITE_BASE_URL 后，把相对 og:image 改写为绝对地址并补上
 # canonical / og:url。留空则完全跳过，不触碰构建产物。
@@ -78,6 +96,7 @@ COPY deploy/tune-html.mjs ./
 RUN node tune-html.mjs /site/migration-showcase "$SITE_BASE_URL"
 RUN node tune-html.mjs /site/patina-showcase "$SITE_BASE_URL"
 RUN node tune-html.mjs /site/arbor-showcase "$SITE_BASE_URL"
+RUN node tune-html.mjs /site/star-trails-showcase "$SITE_BASE_URL"
 
 # ══ 阶段 3：运行镜像 ═══════════════════════════════════════════════════
 FROM nginx:alpine AS runtime
@@ -92,11 +111,14 @@ COPY --from=site-entry /site/index.html /usr/share/nginx/html/index.html
 COPY migration/index.html /usr/share/nginx/html/migration/index.html
 COPY patina/index.html   /usr/share/nginx/html/patina/index.html
 COPY arbor/index.html    /usr/share/nginx/html/arbor/index.html
+COPY star-trails/index.html /usr/share/nginx/html/star-trails/index.html
+COPY star-trails/pkg/    /usr/share/nginx/html/star-trails/pkg/
 
 # 作品 · 工程版：使用构建产物。
 COPY --from=site-entry /site/migration-showcase/ /usr/share/nginx/html/migration-showcase/
 COPY --from=site-entry /site/patina-showcase/    /usr/share/nginx/html/patina-showcase/
 COPY --from=site-entry /site/arbor-showcase/     /usr/share/nginx/html/arbor-showcase/
+COPY --from=site-entry /site/star-trails-showcase/ /usr/share/nginx/html/star-trails-showcase/
 
 # 仓库自己的 MIT 许可证：站点分发的是 MIT 代码，声明必须随产物一同交付。
 COPY LICENSE /usr/share/nginx/html/LICENSE

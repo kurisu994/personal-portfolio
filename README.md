@@ -19,7 +19,9 @@
 
 《一木》是一棵从种子长成的树：落一粒种子，随滚动走过藏春、初见、向远、听风、归一，直到果熟鸟归。
 
-仓库里每件作品都保留两种实现，各自完整可跑：`migration/`、`patina/` 与 `arbor/` 刻意不引入任何第三方依赖，也不发起任何网络请求，用浏览器原生 API 手写；`migration-showcase/`、`patina-showcase/` 与 `arbor-showcase/` 建立在现代前端工具链之上，带类型检查与自动化验收脚本。
+《星轨》是一夜真实的星辰倾泻：输入地点与日期，用真实星表与 Meeus 天文算法算出一夜的星轨弧线与加性曝光显影。
+
+仓库里每件作品都保留两种实现，各自完整可跑：`migration/`、`patina/`、`arbor/` 与 `star-trails/` 刻意不引入任何第三方运行时依赖，也不发起任何外部网络请求；`migration-showcase/`、`patina-showcase/`、`arbor-showcase/` 与 `star-trails-showcase/` 建立在现代前端工具链之上，带类型检查与自动化验收脚本。
 
 ## 目录约定
 
@@ -32,21 +34,24 @@
 
 ## 本地运行
 
-各作品的技术栈和运行方式不同，以对应目录下的 `README.md` 为准。当前六件：
+各作品的技术栈和运行方式不同，以对应目录下的 `README.md` 为准。当前八件：
 
 ```sh
-# 简易版：单文件，无需构建、无需安装、无需联网，浏览器直接打开即可
+# 简易版：无需构建、无需安装第三方包，直接预览
 open migration/index.html
 open patina/index.html
 open arbor/index.html
+# 星轨包含 WebAssembly 二进制，需静态服务同源加载：
+cd star-trails && python3 -m http.server 8080
 
 # 工程版：需要 Node.js 22.12+ 和 pnpm
-cd migration-showcase && pnpm install --frozen-lockfile && pnpm dev
-cd patina-showcase    && pnpm install --frozen-lockfile && pnpm dev
-cd arbor-showcase     && pnpm install --frozen-lockfile && pnpm dev
+cd migration-showcase   && pnpm install --frozen-lockfile && pnpm dev
+cd patina-showcase      && pnpm install --frozen-lockfile && pnpm dev
+cd arbor-showcase       && pnpm install --frozen-lockfile && pnpm dev
+cd star-trails-showcase && pnpm install --frozen-lockfile && pnpm dev
 ```
 
-三个工程版另附类型检查、构建与验收脚本。`migration-showcase/` 有四组（`pnpm verify:model` / `verify:river` / `verify:simulation` / `verify:visual`），`patina-showcase/` 有两组（`pnpm verify:patina` / `verify:visual`），`arbor-showcase/` 有一组（`pnpm verify:simulation`），作品自身的构建方式见各自的 `README.md`。
+工程版均附带类型检查、构建与验收脚本。`migration-showcase/` 有四组，`patina-showcase/` 有两组，`arbor-showcase/` 有一组，`star-trails-showcase/` 有离线天文精度对账（`pnpm verify:astro`）与真实浏览器视觉验收（`pnpm verify:visual`）。
 
 ## 部署
 
@@ -61,7 +66,7 @@ cd arbor-showcase     && pnpm install --frozen-lockfile && pnpm dev
 SITE_BASE_URL=https://example.com/ ./deploy.sh up
 ```
 
-发布后的站点结构为 `/`（作品入口页）、`/migration/`、`/migration-showcase/`、`/patina/`、`/patina-showcase/`、`/arbor/`、`/arbor-showcase/`。目标机器只需安装 Docker，构建全部发生在镜像内，宿主机不需要 Node.js、pnpm 或 nginx。架构、HTTPS 终止方式、新增作品的接线步骤与故障排查见 [`deploy/README.md`](./deploy/README.md)。
+发布后的站点结构为 `/`（作品入口页）、`/migration/`、`/migration-showcase/`、`/patina/`、`/patina-showcase/`、`/arbor/`、`/arbor-showcase/`、`/star-trails/`、`/star-trails-showcase/`。目标机器只需安装 Docker，构建全部发生在镜像内，宿主机不需要 Node.js、pnpm 或 nginx。架构、HTTPS 终止方式、新增作品的接线步骤与故障排查见 [`deploy/README.md`](./deploy/README.md)。
 
 ## 新增一件作品
 
