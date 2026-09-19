@@ -14,6 +14,13 @@
 **/.pnpm-store
 **/*.tsbuildinfo
 
+# Rust 中间产物（star-trails/target，约 235 MB）。WASM 成品已单独入库在
+# star-trails/pkg，容器内不需要重新编译 Rust。
+star-trails/target
+
+# bundle 导出的镜像 tar（约 100 MB），参与打包的只有 build/site。
+build/*.tar
+
 # ── 验收证据与调试产物 ────────────────────────────────────────────────
 # 体积大（每件 16-25 MB）且不参与部署，按作品目录单独排除。
 */artifacts

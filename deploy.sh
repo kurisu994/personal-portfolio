@@ -163,10 +163,11 @@ cmd_up() {
 cmd_bundle() {
   local site_dir="$ROOT_DIR/build/site"
   local revision
-  # 简易版直接复制源码目录里的单文件；工程版取各自 dist/ 构建产物。
+  # 简易版直接复制源码目录里的单文件（星轨另带 WASM 内核，见下方组装步骤）；
+  # 工程版取各自 dist/ 构建产物。
   # Dockerfile 侧同样是枚举式的，两处都要随新增作品同步。
-  local simple_works=(migration patina arbor)
-  local showcase_works=(migration-showcase patina-showcase arbor-showcase)
+  local simple_works=(migration patina arbor star-trails)
+  local showcase_works=(migration-showcase patina-showcase arbor-showcase star-trails-showcase)
   local work
 
   command -v docker >/dev/null 2>&1 || die '未找到 docker'
@@ -191,6 +192,10 @@ cmd_bundle() {
     mkdir -p "$site_dir/$work"
     cp "$ROOT_DIR/$work/index.html" "$site_dir/$work/index.html"
   done
+  # 星轨简易版的 WASM 内核以相对路径 ./pkg/ 加载，是「单文件」约定之外唯一的
+  # 附加资源；漏拷时页面本身仍是 200，打开才报错，所以必须随站点一起复制。
+  mkdir -p "$site_dir/star-trails/pkg"
+  cp -R "$ROOT_DIR/star-trails/pkg/." "$site_dir/star-trails/pkg/"
   for work in "${showcase_works[@]}"; do
     mkdir -p "$site_dir/$work"
     cp -R "$ROOT_DIR/$work/dist/." "$site_dir/$work/"
@@ -222,7 +227,7 @@ cmd_bundle() {
 }
 
 cmd_check() {
-  local base works route url code slash_code failures=0 connection_failed=0
+  local base works route url asset code slash_code failures=0 connection_failed=0
 
   command -v curl >/dev/null 2>&1 || die '未找到 curl，无法执行检查'
   base="$(base_url)"
@@ -277,6 +282,19 @@ cmd_check() {
       failures=$((failures + 1))
     fi
   done <<< "$works"
+
+  # 附加资源不体现在作品目录的请求里（例如星轨简易版的 WASM 内核），单独请求
+  # 一次：漏拷时目录请求仍是 200，只有真正打开作品才会报错。
+  for asset in /star-trails/pkg/star_trails.js /star-trails/pkg/star_trails_bg.wasm; do
+    code="$(http_code "$base$asset")"
+    if [ "$code" = '200' ]; then
+      ok "附加资源    $base$asset  ($code)"
+    else
+      warn "附加资源    $base$asset  ($code)"
+      failures=$((failures + 1))
+      [ "$code" = '000' ] && connection_failed=1
+    fi
+  done
 
   # gzip 是否生效：简易版整个应用是一个约 607 KiB 的 HTML，压缩收益明显。
   if command -v curl >/dev/null 2>&1; then
