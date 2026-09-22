@@ -1,8 +1,8 @@
 // 构建期生成站点入口页。
 //
 // 产物是纯静态 HTML（不依赖运行时 JavaScript），因此入口页本身能被正常索引与
-// 分享；只有作品列表来自 works.json。链接一律使用相对路径（./<route>/），
-// 这样无论站点挂在域名根还是子目录都能正确跳转。
+// 分享；文案与作品列表都来自 works.json（后者含站点备案号）。链接一律使用相对
+// 路径（./<route>/），这样无论站点挂在域名根还是子目录都能正确跳转。
 
 import { readFileSync } from 'node:fs';
 
@@ -16,6 +16,21 @@ const escapeHtml = (value) => String(value).replace(
 );
 
 const works = Array.isArray(manifest.works) ? manifest.works : [];
+
+// 备案信息：大陆站点须在首页底部展示备案号，并链接到工信部备案系统。
+// works.json 里没写就整行不渲染，避免在没有备案号的环境下产出空链接。
+const icpNumber = String(manifest.icp?.number ?? '').trim();
+const icpUrl = String(manifest.icp?.url ?? '').trim() || 'https://beian.miit.gov.cn/';
+
+if (icpNumber !== '' && !/^https:\/\//u.test(icpUrl)) {
+  // 备案号必须指向工信部系统，http 或非法地址属于配置错误。
+  throw new Error(`deploy/works.json 中 icp.url 必须是 https 地址，当前为：${icpUrl}`);
+}
+
+const filingLine = icpNumber === ''
+  ? ''
+  : `
+        <p class="filing">备案号：<a href="${escapeHtml(icpUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(icpNumber)}</a></p>`;
 
 if (works.length === 0) {
   // 空站点是配置错误而非合法状态，让构建直接失败而不是产出空白页面。
@@ -204,6 +219,13 @@ const document = `<!doctype html>
         letter-spacing: 0.14em;
       }
 
+      footer p { margin: 0; }
+
+      footer .filing {
+        margin-top: 0.9em;
+        letter-spacing: 0.08em;
+      }
+
       footer a {
         color: inherit;
         text-decoration: underline;
@@ -233,7 +255,9 @@ const document = `<!doctype html>
 ${cards}
       </ul>
 
-      <footer>${workCount} 件作品 · ${works.length} 种实现 · 画面、配乐与诗歌文本保留所有权利 · <a href="./LICENSE">源代码采用 MIT 许可</a></footer>
+      <footer>
+        <p>${workCount} 件作品 · ${works.length} 种实现 · 画面、配乐与诗歌文本保留所有权利 · <a href="./LICENSE">源代码采用 MIT 许可</a></p>${filingLine}
+      </footer>
     </div>
   </body>
 </html>

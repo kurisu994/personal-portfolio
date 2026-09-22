@@ -2,6 +2,10 @@
   "title": "拾羽集",
   "tagline": "把远方折成翅膀，把此刻交还给风。",
   "description": "以代码描绘自然，让迁徙、生长与星光成为可以交互的风景。每件作品保留两种实现，探索不同技术路径下的表达。",
+  "icp": {
+    "number": "蜀ICP备2026056997号",
+    "url": "https://beian.miit.gov.cn/"
+  },
   "works": [
     {
       "route": "migration",

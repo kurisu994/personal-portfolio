@@ -11,7 +11,7 @@ deploy/
   compose.yaml                单服务编排：端口映射、健康检查、日志轮转
   nginx.conf                  站点配置：缓存策略、gzip、安全响应头
   security-headers.conf       安全响应头片段（原因见下文「设计取舍」）
-  works.json                  站点入口页的作品元数据
+  works.json                  站点入口页的元数据（文案、备案号、作品列表）
   render-landing.mjs          构建期生成入口页（纯静态 HTML）
   tune-html.mjs               可选：把 og:image 改写为绝对地址
 .dockerignore                 构建上下文排除规则（根目录）
