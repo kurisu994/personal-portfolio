@@ -17,13 +17,17 @@ async function main() {
   });
   const page = await context.newPage();
 
-  // 默认使用北京的壮丽北天极回旋画面
-  await page.goto(`${url}?lat=39.9042&lon=116.4074&date=2026-09-20&fov=60&mode=0`, {
+  // 北京长城上空的北天极：分享链接会直接显影到 t 所在的时刻
+  await page.goto(`${url}?lat=39.9042&lon=116.4074&date=2026-09-20&fov=85&mode=0&t=0.62`, {
     waitUntil: 'networkidle',
   });
 
-  // 曝光等待一段时间以积累足够密集的同心圆光轨
-  await page.waitForTimeout(3000);
+  // 暂停在该时刻，等底片显影完成
+  await page.getByRole('button', { name: '暂停曝光' }).click();
+  await page.waitForFunction(() => !document.querySelector('.readouts__status[data-visible="true"]'), null, {
+    timeout: 180000,
+  });
+  await page.waitForTimeout(600);
 
   await page.screenshot({ path: output, type: 'jpeg', quality: 90 });
   await browser.close();

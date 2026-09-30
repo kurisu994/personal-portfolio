@@ -1,28 +1,23 @@
-import React, { useState, useEffect } from 'react';
-import { POEMS, Poem as PoemType } from '../data/poems';
+import React from 'react';
+import { POEMS } from '../data/poems';
 
-export const Poem: React.FC = () => {
-  const [index, setIndex] = useState(0);
-  const [opacity, setOpacity] = useState(1);
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setOpacity(0);
-      setTimeout(() => {
-        setIndex((prev) => (prev + 1) % POEMS.length);
-        setOpacity(1);
-      }, 500);
-    }, 20000);
-
-    return () => clearInterval(timer);
-  }, []);
-
-  const current: PoemType = POEMS[index];
-
+/**
+ * 竖排短诗：十段诗按一夜的进程排列，黄昏第一段、黎明最后一段；
+ * 按逗号分列，换段时像底片显影一样由虚到实。
+ */
+export const Poem: React.FC<{ progress: number }> = ({ progress }) => {
+  const index = Math.min(POEMS.length - 1, Math.floor(progress * POEMS.length));
+  const poem = POEMS[index];
   return (
-    <div className="poem" style={{ opacity }}>
-      <div className="poem__zh">{current.zh}</div>
-      <div className="poem__en">{current.en}</div>
-    </div>
+    <figure className="verse" key={index}>
+      <blockquote className="verse__zh" lang="zh-CN">
+        {poem.zh.split(/(?<=[，；])/).map((clause) => (
+          <span key={clause}>{clause}</span>
+        ))}
+      </blockquote>
+      <figcaption className="verse__en" lang="en">
+        {poem.en}
+      </figcaption>
+    </figure>
   );
 };
