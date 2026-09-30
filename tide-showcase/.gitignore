@@ -1,0 +1,6 @@
+node_modules
+dist
+.rsbuild
+artifacts
+*.local
+.DS_Store
