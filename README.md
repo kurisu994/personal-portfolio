@@ -72,7 +72,7 @@ cd tide-showcase        && pnpm install --frozen-lockfile && pnpm dev
 SITE_BASE_URL=https://example.com/ ./deploy.sh up
 ```
 
-发布后的站点结构为 `/`（作品入口页）、`/migration/`、`/migration-showcase/`、`/patina/`、`/patina-showcase/`、`/arbor/`、`/arbor-showcase/`、`/star-trails/`、`/star-trails-showcase/`。`tide-showcase/` 尚未接入部署。目标机器只需安装 Docker，构建全部发生在镜像内，宿主机不需要 Node.js、pnpm 或 nginx。架构、HTTPS 终止方式、新增作品的接线步骤与故障排查见 [`deploy/README.md`](./deploy/README.md)。
+发布后的站点结构为 `/`（作品入口页）、`/migration/`、`/migration-showcase/`、`/patina/`、`/patina-showcase/`、`/arbor/`、`/arbor-showcase/`、`/star-trails/`、`/star-trails-showcase/`、`/tide-showcase/`。目标机器只需安装 Docker，构建全部发生在镜像内，宿主机不需要 Node.js、pnpm 或 nginx。架构、HTTPS 终止方式、新增作品的接线步骤与故障排查见 [`deploy/README.md`](./deploy/README.md)。
 
 ## 新增一件作品
 

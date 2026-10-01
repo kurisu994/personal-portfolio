@@ -167,7 +167,7 @@ cmd_bundle() {
   # 工程版取各自 dist/ 构建产物。
   # Dockerfile 侧同样是枚举式的，两处都要随新增作品同步。
   local simple_works=(migration patina arbor star-trails)
-  local showcase_works=(migration-showcase patina-showcase arbor-showcase star-trails-showcase)
+  local showcase_works=(migration-showcase patina-showcase arbor-showcase star-trails-showcase tide-showcase)
   local work
 
   command -v docker >/dev/null 2>&1 || die '未找到 docker'

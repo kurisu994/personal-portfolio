@@ -62,6 +62,13 @@
       "variant": "工程版",
       "summary": "选定一处夜空，看星光随时间累积，在长曝光中逐渐显影。与简易版共享天文内核，以 WebGL2 呈现星轨叠加与柔和光晕。",
       "stack": "React · TypeScript · WebGL2 · Rust (WASM) · Rsbuild"
+    },
+    {
+      "route": "tide-showcase",
+      "name": "潮汐 · TIDELINE",
+      "variant": "工程版",
+      "summary": "在一段潮间带上写字，看潮水按真实的月相与谐波模型涨落。沙面被浸湿又晾干，字迹先被抹平，退水处留下一道泡沫花边。",
+      "stack": "React · TypeScript · Three.js · WebAudio · Rsbuild"
     }
   ]
 }

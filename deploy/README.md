@@ -29,6 +29,7 @@ deploy/
 /arbor-showcase/       作品 · 工程版（Rsbuild 构建产物）
 /star-trails/          作品 · 简易版（零依赖单文件 + 同源 WASM 内核）
 /star-trails-showcase/ 作品 · 工程版（Rsbuild 构建产物）
+/tide-showcase/        作品 · 工程版（Rsbuild 构建产物）
 ```
 
 ## 快速开始
