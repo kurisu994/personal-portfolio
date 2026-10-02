@@ -166,7 +166,7 @@ cmd_bundle() {
   # 简易版直接复制源码目录里的单文件（星轨另带 WASM 内核，见下方组装步骤）；
   # 工程版取各自 dist/ 构建产物。
   # Dockerfile 侧同样是枚举式的，两处都要随新增作品同步。
-  local simple_works=(migration patina arbor star-trails)
+  local simple_works=(migration patina arbor star-trails tide)
   local showcase_works=(migration-showcase patina-showcase arbor-showcase star-trails-showcase tide-showcase)
   local work
 

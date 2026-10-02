@@ -64,6 +64,13 @@
       "stack": "React · TypeScript · WebGL2 · Rust (WASM) · Rsbuild"
     },
     {
+      "route": "tide",
+      "name": "潮汐 · TIDELINE",
+      "variant": "简易版",
+      "summary": "把一段潮间带画成测绘图：剖面里潮水按真实月相涨落，平面上写下的字被涨潮一点点收回。不借助任何库，由 Canvas 2D 画出水位、泡沫与湿沙。",
+      "stack": "原生 JavaScript · Canvas 2D · WebAudio"
+    },
+    {
       "route": "tide-showcase",
       "name": "潮汐 · TIDELINE",
       "variant": "工程版",

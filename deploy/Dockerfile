@@ -131,6 +131,7 @@ COPY patina/index.html   /usr/share/nginx/html/patina/index.html
 COPY arbor/index.html    /usr/share/nginx/html/arbor/index.html
 COPY star-trails/index.html /usr/share/nginx/html/star-trails/index.html
 COPY star-trails/pkg/    /usr/share/nginx/html/star-trails/pkg/
+COPY tide/index.html     /usr/share/nginx/html/tide/index.html
 
 # 作品 · 工程版：使用构建产物。
 COPY --from=site-entry /site/migration-showcase/ /usr/share/nginx/html/migration-showcase/
