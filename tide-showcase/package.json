@@ -15,6 +15,7 @@
     "typecheck": "tsc --noEmit",
     "verify:tide": "tsx scripts/tide-audit.ts",
     "verify:visual": "tsx scripts/visual-audit.ts",
+    "verify:simple": "tsx scripts/simple-audit.ts",
     "make:og": "node scripts/make-og.mjs"
   },
   "dependencies": {

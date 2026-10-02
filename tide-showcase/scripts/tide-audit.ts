@@ -1,10 +1,11 @@
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { runInNewContext } from 'node:vm';
 import { COASTS } from '../src/data/coasts';
 import { MAX_DABS_PER_FRAME, WAVE_COMPONENTS } from '../src/scene/budget';
-import { ERASE_HOURS, TRACE_GONE, stepTrace, stepWet } from '../src/tide/lifecycle';
-import { PERIOD_HOURS, findExtrema, moonPhaseAngle, tideHeight, type TideModel } from '../src/tide/model';
+import { DRY_HOURS, ERASE_HOURS, FOAM_HOURS, TRACE_GONE, WIND_HOURS, stepTrace, stepWet } from '../src/tide/lifecycle';
+import { PERIOD_HOURS, findExtrema, moonPhaseAngle, springNeap, tideHeight, type TideExtremum, type TideModel } from '../src/tide/model';
 
 /**
  * 纯 Node 的潮汐验收：不需要浏览器，断言模型与生命周期规则满足设计稿的要求。
@@ -132,6 +133,70 @@ const cycleRanges = (model: TideModel, lon: number, from: number, days: number) 
 {
   const constituents = Math.max(...COASTS.map((c) => c.model.constituents.length));
   check('预算', '分潮 ≤ 6、同屏涌浪分量 ≤ 5、每帧笔触 ≤ 512', `分潮 ${constituents}、涌浪分量 ${WAVE_COMPONENTS}、每帧笔触 ${MAX_DABS_PER_FRAME}`, constituents <= 6 && WAVE_COMPONENTS <= 5 && MAX_DABS_PER_FRAME <= 512);
+}
+
+// 7. 零依赖版同源：取出 ../tide/index.html 里 MODEL:BEGIN 与 MODEL:END 之间的模型段，
+//    放进独立的 vm 上下文执行，与本版逐小时对账。两版各自持有一份代码，这一项保证它们算的是同一片海。
+{
+  interface SimpleModel {
+    PERIOD_HOURS: unknown;
+    COASTS: typeof COASTS;
+    lifecycle: number[];
+    tideHeight: typeof tideHeight;
+    findExtrema: (model: TideModel, lon: number, from: number, to: number) => TideExtremum[];
+    moonPhaseAngle: typeof moonPhaseAngle;
+    springNeap: typeof springNeap;
+    stepWet: typeof stepWet;
+    stepTrace: typeof stepTrace;
+  }
+  const html = readFileSync(resolve(__dirname, '../../tide/index.html'), 'utf8');
+  // 标记必须独占一行，注释里提到标记名不会被误认
+  const block = /^[ \t]*\/\/ MODEL:BEGIN[ \t]*$([\s\S]*?)^[ \t]*\/\/ MODEL:END[ \t]*$/m.exec(html);
+  if (!block) {
+    check('零依赖版同源', '../tide/index.html 含 MODEL:BEGIN / MODEL:END 模型段', '没有找到模型段', false);
+  } else {
+    const simple = runInNewContext(
+      `${block[1]}\n;({ PERIOD_HOURS, COASTS, lifecycle: [DRY_HOURS, ERASE_HOURS, WIND_HOURS, FOAM_HOURS, TRACE_GONE], tideHeight, findExtrema, moonPhaseAngle, springNeap, stepWet, stepTrace })`,
+    ) as SimpleModel;
+    const sameData =
+      JSON.stringify(simple.COASTS) === JSON.stringify(COASTS) &&
+      JSON.stringify(simple.PERIOD_HOURS) === JSON.stringify(PERIOD_HOURS) &&
+      JSON.stringify(simple.lifecycle) === JSON.stringify([DRY_HOURS, ERASE_HOURS, WIND_HOURS, FOAM_HOURS, TRACE_GONE]);
+    let heightDiff = 0;
+    let extremaDiff = 0;
+    let extremaCountMismatch = 0;
+    let moonMismatch = 0;
+    // 两边各用自己的海岸数据算，潮位向量才是端到端的对账
+    COASTS.forEach((coast, index) => {
+      const own = simple.COASTS[index];
+      for (let hour = 0; hour <= 30 * 24; hour++) {
+        const jd = START + hour / 24;
+        heightDiff = Math.max(heightDiff, Math.abs(simple.tideHeight(own.model, jd, own.lon) - tideHeight(coast.model, jd, coast.lon)));
+        if (Math.abs(simple.moonPhaseAngle(jd) - moonPhaseAngle(jd)) > 1e-9 || simple.springNeap(jd) !== springNeap(jd)) moonMismatch++;
+      }
+      const a = findExtrema(coast.model, coast.lon, START, START + 3);
+      const b = simple.findExtrema(own.model, own.lon, START, START + 3);
+      if (a.length !== b.length) extremaCountMismatch++;
+      a.forEach((e, i) => {
+        const o = b[i];
+        extremaDiff = Math.max(extremaDiff, o && o.kind === e.kind ? Math.abs(o.jd - e.jd) * 86400 : Infinity);
+      });
+    });
+    let lifecycleDiff = 0;
+    for (const v of [0, 0.3, 1]) {
+      for (const dt of [0.01, 0.2, 2]) {
+        for (const covered of [true, false]) {
+          lifecycleDiff = Math.max(lifecycleDiff, Math.abs(simple.stepWet(v, covered, dt) - stepWet(v, covered, dt)), Math.abs(simple.stepTrace(v, covered, dt) - stepTrace(v, covered, dt)));
+        }
+      }
+    }
+    check(
+      '零依赖版同源',
+      '海岸与分潮表、生命周期常数一致；三种海岸 30 天逐小时潮位差 < 1e-9 m，高低潮时刻差 < 1 s',
+      `数据${sameData ? '一致' : '不一致'}，潮位最大差 ${heightDiff.toExponential(1)} m，高低潮最大差 ${extremaDiff.toFixed(3)} s（数量不符 ${extremaCountMismatch} 处），月相不符 ${moonMismatch} 处，生命周期最大差 ${lifecycleDiff.toExponential(1)}`,
+      sameData && heightDiff < 1e-9 && extremaDiff < 1 && extremaCountMismatch === 0 && moonMismatch === 0 && lifecycleDiff < 1e-12,
+    );
+  }
 }
 
 mkdirSync(outDir, { recursive: true });
