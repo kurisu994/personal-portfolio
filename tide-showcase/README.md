@@ -2,7 +2,7 @@
 
 一片潮间带，潮水按真实的月相与谐波模型涨落。可以在沙上写字、画线，涨潮会把它们一点点收回去。
 
-设计稿见 [`../docs/specs/tide.md`](../docs/specs/tide.md)。目前只有工程版；零依赖的 2D 剖面版 `tide/` 尚未开始，届时与本版共用 `src/tide/model.ts` 的模型定义和验收向量。
+设计稿见 [`../docs/specs/tide.md`](../docs/specs/tide.md)。零依赖版在相邻的 [`../tide/`](../tide/)：一张剖面加平面的测绘图，模型段逐行移植自本版，`pnpm verify:tide` 会把两份模型逐小时对账。
 
 ---
 
@@ -76,7 +76,8 @@ pnpm dev
 
 ```sh
 pnpm typecheck      # 严格类型检查
-pnpm verify:tide    # 纯 Node：M2 周期、大小潮潮差比、朔望相位、湿度与痕迹生命周期、预算
+pnpm verify:tide    # 纯 Node：M2 周期、大小潮潮差比、朔望相位、湿度与痕迹生命周期、预算、与零依赖版的模型对账
+pnpm verify:simple  # 零依赖版的真实浏览器验收（自带临时服务器，不需要先启动 dev）
 pnpm build          # 生产打包
 
 # 视觉验收需要先启动 pnpm dev 或 pnpm preview
@@ -84,7 +85,7 @@ TIDE_URL=http://127.0.0.1:3000/ pnpm verify:visual   # 三种海岸 × 四个潮
 TIDE_URL=http://127.0.0.1:3000/ pnpm make:og         # 重新生成 public/og-tide.jpg
 ```
 
-报告与截图写到 `artifacts/`（已忽略）。软件渲染（SwiftShader 等）会自动降到最低画质档，截图脚本在 macOS 上会请求 Metal。
+报告与截图写到 `artifacts/`（已忽略），零依赖版的在 `artifacts/simple/`。软件渲染（SwiftShader 等）会自动降到最低画质档，截图脚本在 macOS 上会请求 Metal。
 
 ---
 

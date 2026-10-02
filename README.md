@@ -14,6 +14,7 @@
 | 一木 · ARBOR | [`arbor-showcase/`](./arbor-showcase/) | 工程化实现，Rsbuild 构建 | React 19 · TypeScript · Three.js · GSAP · Rsbuild |
 | 星轨 · STAR TRAILS · 简易版 | [`star-trails/`](./star-trails/) | 单文件 + WASM，零第三方运行时依赖 | 原生 HTML / JavaScript · Canvas 2D · Rust WebAssembly |
 | 星轨 · STAR TRAILS | [`star-trails-showcase/`](./star-trails-showcase/) | 工程化实现，Rsbuild 构建 | React 19 · TypeScript · WebGL2 · Rust WebAssembly · Rsbuild |
+| 潮汐 · TIDELINE · 简易版 | [`tide/`](./tide/) | 单文件，零第三方依赖 | 原生 HTML / CSS / JavaScript · Canvas 2D · WebAudio |
 | 潮汐 · TIDELINE | [`tide-showcase/`](./tide-showcase/) | 工程化实现，Rsbuild 构建 | React 19 · TypeScript · Three.js · WebAudio · Rsbuild |
 
 《候鸟》是一趟程序化生成的迁徙旅程：一群折纸候鸟沿河流飞行，穿越暖纸、雾境、暮粉、雪境、夜航五种气候，全程没有终点，也没有两段相同的航线。
@@ -24,9 +25,9 @@
 
 《星轨》是一夜真实的星辰倾泻：输入地点与日期，用真实星表与 Meeus 天文算法算出一夜的星轨弧线与加性曝光显影。
 
-《潮汐》是一片潮间带：潮水按真实月相与谐波模型涨落，在沙上写下的字会被下一次涨潮收回。目前只有工程版，零依赖版待做。
+《潮汐》是一片潮间带：潮水按真实月相与谐波模型涨落，在沙上写下的字会被下一次涨潮收回。简易版把它画成一张剖面加平面的测绘图，工程版是可以走进去的三维海岸。
 
-仓库里每件作品都保留两种实现，各自完整可跑：`migration/`、`patina/`、`arbor/` 与 `star-trails/` 刻意不引入任何第三方运行时依赖，也不发起任何外部网络请求；`migration-showcase/`、`patina-showcase/`、`arbor-showcase/` 与 `star-trails-showcase/` 建立在现代前端工具链之上，带类型检查与自动化验收脚本。
+仓库里每件作品都保留两种实现，各自完整可跑：`migration/`、`patina/`、`arbor/`、`star-trails/` 与 `tide/` 刻意不引入任何第三方运行时依赖，也不发起任何外部网络请求；`migration-showcase/`、`patina-showcase/`、`arbor-showcase/`、`star-trails-showcase/` 与 `tide-showcase/` 建立在现代前端工具链之上，带类型检查与自动化验收脚本。
 
 ## 目录约定
 
@@ -39,13 +40,14 @@
 
 ## 本地运行
 
-各作品的技术栈和运行方式不同，以对应目录下的 `README.md` 为准。当前九件：
+各作品的技术栈和运行方式不同，以对应目录下的 `README.md` 为准。当前十件：
 
 ```sh
 # 简易版：无需构建、无需安装第三方包，直接预览
 open migration/index.html
 open patina/index.html
 open arbor/index.html
+open tide/index.html
 # 星轨包含 WebAssembly 二进制，需静态服务同源加载：
 cd star-trails && python3 -m http.server 8080
 
@@ -57,7 +59,7 @@ cd star-trails-showcase && pnpm install --frozen-lockfile && pnpm dev
 cd tide-showcase        && pnpm install --frozen-lockfile && pnpm dev
 ```
 
-工程版均附带类型检查、构建与验收脚本。`migration-showcase/` 有四组，`patina-showcase/` 有两组，`arbor-showcase/` 有一组，`star-trails-showcase/` 有离线天文精度对账（`pnpm verify:astro`）与真实浏览器视觉验收（`pnpm verify:visual`），`tide-showcase/` 有纯 Node 的潮汐模型验收（`pnpm verify:tide`）与视觉验收（`pnpm verify:visual`）。
+工程版均附带类型检查、构建与验收脚本。`migration-showcase/` 有四组，`patina-showcase/` 有两组，`arbor-showcase/` 有一组，`star-trails-showcase/` 有离线天文精度对账（`pnpm verify:astro`）与真实浏览器视觉验收（`pnpm verify:visual`），`tide-showcase/` 有纯 Node 的潮汐模型验收（`pnpm verify:tide`，含与零依赖版的模型对账）、视觉验收（`pnpm verify:visual`）与零依赖版的浏览器验收（`pnpm verify:simple`）。
 
 ## 部署
 
@@ -72,7 +74,7 @@ cd tide-showcase        && pnpm install --frozen-lockfile && pnpm dev
 SITE_BASE_URL=https://example.com/ ./deploy.sh up
 ```
 
-发布后的站点结构为 `/`（作品入口页）、`/migration/`、`/migration-showcase/`、`/patina/`、`/patina-showcase/`、`/arbor/`、`/arbor-showcase/`、`/star-trails/`、`/star-trails-showcase/`、`/tide-showcase/`。目标机器只需安装 Docker，构建全部发生在镜像内，宿主机不需要 Node.js、pnpm 或 nginx。架构、HTTPS 终止方式、新增作品的接线步骤与故障排查见 [`deploy/README.md`](./deploy/README.md)。
+发布后的站点结构为 `/`（作品入口页）、`/migration/`、`/migration-showcase/`、`/patina/`、`/patina-showcase/`、`/arbor/`、`/arbor-showcase/`、`/star-trails/`、`/star-trails-showcase/`、`/tide/`、`/tide-showcase/`。目标机器只需安装 Docker，构建全部发生在镜像内，宿主机不需要 Node.js、pnpm 或 nginx。架构、HTTPS 终止方式、新增作品的接线步骤与故障排查见 [`deploy/README.md`](./deploy/README.md)。
 
 ## 新增一件作品
 
@@ -89,4 +91,4 @@ SITE_BASE_URL=https://example.com/ ./deploy.sh up
 各作品及其素材的具体授权，以对应目录内 `README.md` 的说明为准。
 
 - **第三方依赖**：`migration-showcase/` 运行时依赖 three、React、lucide 以及 Manrope / Noto Serif SC 两款字体，`patina-showcase/` 运行时依赖 React 与 Noto Serif SC，`arbor-showcase/` 运行时依赖 three、React、Simplex Noise、lucide 以及 Manrope / Noto Serif SC 两款字体（其中 **GSAP 使用 Standard “No Charge” GSAP License，并非 MIT**），`star-trails-showcase/` 运行时依赖 React、lucide 与 Noto Serif SC，`tide-showcase/` 运行时依赖 three、React、lucide 与 Noto Serif SC，它们的许可证原文保存在各自作品目录的 `public/licenses/` 下。该目录属于构建输入，Rsbuild 会将它原样复制到 `dist/licenses/`，许可证因此随部署产物一同分发。**不要把这份副本移出 `public/`**，否则线上站点会失去授权声明。
-- **简易版**：`migration/`、`patina/` 与 `arbor/` 不依赖任何第三方库、字体或 CDN，配乐与图标都内嵌在单文件里，无需附带许可证副本。
+- **简易版**：`migration/`、`patina/`、`arbor/` 与 `tide/` 不依赖任何第三方库、字体或 CDN，配乐与图标都内嵌在单文件里，无需附带许可证副本。
