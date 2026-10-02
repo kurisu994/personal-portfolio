@@ -1,0 +1,2997 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#f0ebe0" />
+    <meta name="description" content="潮汐 · TIDELINE 简易版。零第三方依赖的单文件潮间带测绘图：剖面看潮水按真实月相涨落，平面上写的字会被涨潮收回。" />
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%23efe9dc'/%3E%3Cpath d='M44 7A11 11 0 0 0 44 29A13.5 13.5 0 0 1 44 7Z' fill='%2322211d'/%3E%3Cpath d='M0 41c8-7 16-7 24 0s16 7 24 0 12-6 16-3V64H0Z' fill='%232f5d6e'/%3E%3Cpath d='M0 41c8-7 16-7 24 0s16 7 24 0 12-6 16-3' fill='none' stroke='%23f6f2e9' stroke-width='2.4'/%3E%3Cpath d='M0 55c8-4 16-4 24 0s16 4 24 0 12-3 16-2' fill='none' stroke='%23f6f2e9' stroke-width='1.4' stroke-opacity='.45'/%3E%3C/svg%3E" />
+    <title>潮汐 · TIDELINE（简易版）</title>
+    <style>
+      /*
+       * 一张潮间带测绘图：上半是剖面 A—A，下半是同一比例的平面。
+       * 界面沿用工程版的边注式语言；色调在「纸色墨字」与「底片黑银白字」两态之间切换，
+       * --ink-rgb / --veil-rgb 由脚本按天光写入。
+       */
+      :root {
+        --ink-rgb: 34 33 29;
+        --veil-rgb: 240 235 224;
+        --ink: rgb(var(--ink-rgb));
+        --ink-2: rgb(var(--ink-rgb) / 0.68);
+        --ink-3: rgb(var(--ink-rgb) / 0.44);
+        --hair: rgb(var(--ink-rgb) / 0.18);
+        --hair-strong: rgb(var(--ink-rgb) / 0.36);
+        --veil: rgb(var(--veil-rgb));
+        --serif: "Songti SC", "Noto Serif CJK SC", "Source Han Serif SC", "STSong", "SimSun", Georgia, serif;
+        --data: "SF Pro Text", -apple-system, BlinkMacSystemFont, "Helvetica Neue", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+        --gutter: clamp(16px, 2.6vw, 40px);
+        --deck: 76px;
+        --ease: cubic-bezier(0.22, 0.8, 0.24, 1);
+        color-scheme: light;
+        font-family: var(--serif);
+        font-synthesis: none;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+
+      html, body {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: var(--veil);
+        color: var(--ink);
+      }
+
+      body { overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
+
+      button, input {
+        border: 0;
+        background: transparent;
+        color: inherit;
+        font: inherit;
+      }
+
+      button { cursor: pointer; }
+
+      :focus-visible { outline: 1px solid var(--ink); outline-offset: 4px; }
+
+      svg { display: block; }
+
+      #stage {
+        position: fixed;
+        inset: 0;
+        display: block;
+        width: 100%;
+        height: 100%;
+        touch-action: none;
+      }
+
+      .hud {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+      }
+
+      .hud :is(button, input, .table__plot) { pointer-events: auto; }
+
+      /* 标识 */
+      .masthead {
+        position: absolute;
+        top: max(var(--gutter), env(safe-area-inset-top));
+        left: max(var(--gutter), env(safe-area-inset-left));
+        display: flex;
+        gap: 6px;
+      }
+
+      .masthead h1 { display: flex; gap: 6px; font-weight: 500; }
+
+      .masthead__zh {
+        writing-mode: vertical-rl;
+        font-size: 28px;
+        letter-spacing: 0.24em;
+        line-height: 1;
+      }
+
+      .masthead__en,
+      .masthead__variant {
+        writing-mode: vertical-rl;
+        color: var(--ink-3);
+        font-family: var(--data);
+        font-size: 10.5px;
+        font-weight: 400;
+        letter-spacing: 0.3em;
+      }
+
+      .masthead__variant { font-family: var(--serif); letter-spacing: 0.24em; }
+
+      /* 海岸与时间 */
+      .site {
+        position: absolute;
+        top: max(var(--gutter), env(safe-area-inset-top));
+        left: calc(max(var(--gutter), env(safe-area-inset-left)) + 82px);
+        display: grid;
+        justify-items: start;
+        gap: 6px;
+      }
+
+      .coast-tabs { display: flex; gap: 2px; margin-left: -8px; }
+
+      .coast-tabs button {
+        padding: 4px 8px;
+        color: var(--ink-3);
+        font-size: 13px;
+        letter-spacing: 0.12em;
+        transition: color 200ms ease;
+      }
+
+      .coast-tabs button:hover { color: var(--ink-2); }
+
+      .coast-tabs button[aria-checked="true"] { color: var(--ink); }
+
+      .coast-tabs button[aria-checked="true"]::after {
+        display: block;
+        height: 1px;
+        margin-top: 3px;
+        background: var(--ink);
+        content: "";
+      }
+
+      .site__clock {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        margin-top: 4px;
+        font-family: var(--data);
+        font-size: 34px;
+        font-weight: 200;
+        font-variant-numeric: tabular-nums;
+        line-height: 1;
+      }
+
+      .site__clock small {
+        color: var(--ink-3);
+        font-family: var(--serif);
+        font-size: 12px;
+        font-weight: 400;
+        letter-spacing: 0.1em;
+      }
+
+      .site__date {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--ink-3);
+        font-size: 12px;
+        letter-spacing: 0.12em;
+      }
+
+      .site__date input {
+        padding: 2px 0;
+        border-bottom: 1px solid var(--hair-strong);
+        color: var(--ink);
+        font-family: var(--data);
+        font-size: 13px;
+        font-variant-numeric: tabular-nums;
+        letter-spacing: 0.02em;
+        color-scheme: inherit;
+      }
+
+      .site__meta {
+        color: var(--ink-2);
+        font-size: 13px;
+        letter-spacing: 0.08em;
+        line-height: 1.7;
+      }
+
+      .site__meta small { display: block; color: var(--ink-3); font-size: 12px; }
+
+      /* 竖排短诗 */
+      .verse {
+        position: absolute;
+        top: max(var(--gutter), env(safe-area-inset-top));
+        left: calc(max(var(--gutter), env(safe-area-inset-left)) + 300px);
+        display: flex;
+        flex-direction: row-reverse;
+        gap: 10px;
+        animation: surface 2.6s var(--ease) both;
+      }
+
+      .verse__zh {
+        writing-mode: vertical-rl;
+        font-size: 15px;
+        line-height: 1.9;
+        letter-spacing: 0.2em;
+      }
+
+      .verse__zh span { display: block; }
+
+      .verse__zh span + span { padding-top: 1.4em; }
+
+      .verse__en {
+        writing-mode: vertical-rl;
+        max-inline-size: 240px;
+        color: var(--ink-3);
+        font-family: var(--data);
+        font-size: 10.5px;
+        line-height: 1.6;
+        letter-spacing: 0.04em;
+      }
+
+      @keyframes surface {
+        from { filter: blur(8px); opacity: 0; }
+        to { filter: blur(0); opacity: 1; }
+      }
+
+      /* 读数与潮汐表 */
+      .almanac {
+        position: absolute;
+        top: max(var(--gutter), env(safe-area-inset-top));
+        right: max(var(--gutter), env(safe-area-inset-right));
+        display: grid;
+        gap: 12px;
+        width: min(440px, 36vw);
+      }
+
+      .readouts {
+        display: flex;
+        justify-content: flex-end;
+        align-items: flex-end;
+        column-gap: clamp(18px, 2.4vw, 36px);
+      }
+
+      .readout { display: grid; gap: 2px; }
+
+      .readout dt { color: var(--ink-3); font-size: 12px; letter-spacing: 0.12em; }
+
+      .readout dd {
+        font-family: var(--data);
+        font-size: 19px;
+        font-weight: 300;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+      }
+
+      .readout--primary dd { font-size: 40px; font-weight: 200; line-height: 1; }
+
+      .readout dd small {
+        margin-left: 0.3em;
+        color: var(--ink-3);
+        font-family: var(--serif);
+        font-size: 12px;
+        font-weight: 400;
+      }
+
+      .table { display: grid; gap: 4px; margin-top: 26px; }
+
+      .table__plot {
+        position: relative;
+        height: 76px;
+        cursor: ew-resize;
+        touch-action: none;
+      }
+
+      .table__plot svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+
+      .table__msl { stroke: var(--hair); stroke-dasharray: 2 4; vector-effect: non-scaling-stroke; }
+
+      .table__area { fill: rgb(var(--ink-rgb) / 0.07); }
+
+      .table__line { fill: none; stroke: var(--ink); stroke-width: 1.25; vector-effect: non-scaling-stroke; }
+
+      .table__mark { position: absolute; display: grid; justify-items: center; width: 0; pointer-events: none; }
+
+      .table__mark::before {
+        width: 5px;
+        height: 5px;
+        border: 1px solid var(--ink);
+        border-radius: 50%;
+        background: var(--veil);
+        content: "";
+        transform: translateY(-50%);
+      }
+
+      .table__mark b,
+      .table__mark i {
+        position: absolute;
+        font-family: var(--data);
+        font-size: 10.5px;
+        font-style: normal;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+      }
+
+      .table__mark b { font-weight: 500; }
+
+      .table__mark i { color: var(--ink-3); }
+
+      .table__mark--high b { bottom: 8px; }
+
+      .table__mark--high i { bottom: 20px; }
+
+      .table__mark--low b { top: 4px; }
+
+      /* 低潮标注与时刻排成一行，挂在曲线下方的留白里 */
+      .table__mark--low b i { position: static; margin-left: 5px; font-weight: 400; }
+
+      .table__head {
+        position: absolute;
+        top: -4px;
+        bottom: -14px;
+        width: 1px;
+        background: var(--ink);
+        pointer-events: none;
+      }
+
+      .table__head b {
+        position: absolute;
+        bottom: calc(100% + 4px);
+        left: 50%;
+        padding: 2px 6px;
+        background: var(--ink);
+        color: var(--veil);
+        font-family: var(--data);
+        font-size: 11.5px;
+        font-weight: 500;
+        font-variant-numeric: tabular-nums;
+        transform: translateX(-50%);
+      }
+
+      .table__day { height: 6px; border-radius: 1px; }
+
+      .table__hours { position: relative; height: 14px; }
+
+      .table__hours span {
+        position: absolute;
+        color: var(--ink-3);
+        font-family: var(--data);
+        font-size: 10.5px;
+        font-variant-numeric: tabular-nums;
+        transform: translateX(-50%);
+      }
+
+      .table__hours span:first-child { transform: none; }
+
+      .table__hours span:last-child { transform: translateX(-100%); }
+
+      /* 剖切位置把手：平面左缘的「A」 */
+      .cut {
+        position: absolute;
+        left: max(6px, env(safe-area-inset-left));
+        display: grid;
+        width: 26px;
+        height: 26px;
+        place-items: center;
+        border: 1px solid var(--ink);
+        border-radius: 50%;
+        background: var(--veil);
+        color: var(--ink);
+        font-family: var(--data);
+        font-size: 11px;
+        font-weight: 600;
+        cursor: ns-resize;
+        touch-action: none;
+        transform: translateY(-50%);
+      }
+
+      /* 底部操作 */
+      .deck {
+        position: absolute;
+        right: max(var(--gutter), env(safe-area-inset-right));
+        bottom: max(12px, env(safe-area-inset-bottom));
+        left: max(var(--gutter), env(safe-area-inset-left));
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 14px;
+        height: calc(var(--deck) - 20px);
+      }
+
+      .group { display: flex; align-items: center; gap: 10px; }
+
+      .round {
+        display: grid;
+        width: 40px;
+        height: 40px;
+        place-items: center;
+        border: 1px solid var(--hair-strong);
+        border-radius: 50%;
+        color: var(--ink-2);
+        transition: color 200ms ease, border-color 200ms ease, background-color 200ms ease;
+      }
+
+      .round:hover,
+      .round[aria-pressed="true"] { border-color: var(--ink); color: var(--ink); }
+
+      .round--primary { width: 46px; height: 46px; border-color: var(--ink); background: var(--ink); color: var(--veil); }
+
+      .round--primary:hover { background: transparent; color: var(--ink); }
+
+      .icon { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+
+      .icon--fill { fill: currentColor; stroke: none; }
+
+      .round .strike { display: none; }
+
+      .round[aria-pressed="false"] .strike { display: inline; }
+
+      .round[aria-pressed="false"] .waves { display: none; }
+
+      .segmented {
+        display: flex;
+        height: 38px;
+        padding: 3px;
+        border: 1px solid var(--hair-strong);
+        border-radius: 999px;
+      }
+
+      .segmented button {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 0 12px;
+        border-radius: 999px;
+        color: var(--ink-2);
+        font-size: 13px;
+        letter-spacing: 0.08em;
+        white-space: nowrap;
+        transition: color 200ms ease, background-color 200ms ease;
+      }
+
+      .segmented button:hover { color: var(--ink); }
+
+      .segmented button[aria-checked="true"] { background: var(--ink); color: var(--veil); }
+
+      .segmented .icon { width: 15px; height: 15px; }
+
+      .speed button { font-family: var(--data); font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
+
+      .text-button {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        height: 38px;
+        padding: 0 10px;
+        color: var(--ink-2);
+        font-size: 13px;
+        letter-spacing: 0.12em;
+        white-space: nowrap;
+        transition: color 200ms ease;
+      }
+
+      .text-button:hover { color: var(--ink); }
+
+      .text-button .icon { width: 16px; height: 16px; }
+
+      .text-input {
+        width: 11em;
+        height: 38px;
+        padding: 0 4px;
+        border-bottom: 1px solid var(--hair-strong);
+        color: var(--ink);
+        font-size: 15px;
+        letter-spacing: 0.1em;
+      }
+
+      .text-input::placeholder { color: var(--ink-3); }
+
+      .text-input:focus-visible { border-color: var(--ink); outline: none; }
+
+      .text-input[hidden] { display: none; }
+
+      .toast {
+        position: fixed;
+        bottom: calc(var(--deck) + 14px);
+        left: 50%;
+        padding: 8px 16px;
+        border: 1px solid var(--hair);
+        border-radius: 999px;
+        background: rgb(var(--veil-rgb) / 0.9);
+        color: var(--ink-2);
+        font-size: 13px;
+        letter-spacing: 0.08em;
+        white-space: nowrap;
+        opacity: 0;
+        pointer-events: none;
+        transform: translate(-50%, 6px);
+        transition: opacity 400ms var(--ease), transform 400ms var(--ease);
+      }
+
+      .toast[data-visible="true"] { opacity: 1; transform: translate(-50%, 0); }
+
+      /* 窄屏：标识与读数并排在顶部，潮汐表横跨全宽，操作分两行 */
+      @media (max-width: 759px) {
+        :root { --deck: 124px; }
+
+        .masthead h1 { flex-direction: row; align-items: baseline; gap: 8px; }
+
+        .masthead__zh, .masthead__en { writing-mode: horizontal-tb; }
+
+        .masthead__zh { font-size: 22px; }
+
+        .masthead__variant { display: none; }
+
+        .site { top: calc(max(var(--gutter), env(safe-area-inset-top)) + 34px); left: max(var(--gutter), env(safe-area-inset-left)); gap: 2px; }
+
+        .site__clock { font-size: 24px; }
+
+        .site__date { display: none; }
+
+        .site__meta { font-size: 12px; line-height: 1.5; }
+
+        .almanac { width: auto; left: max(var(--gutter), env(safe-area-inset-left)); gap: 6px; }
+
+        .readouts { column-gap: 14px; }
+
+        .readout:not(.readout--primary) { display: none; }
+
+        .readout--primary dd { font-size: 30px; }
+
+        .table { margin-top: 112px; }
+
+        .table__plot { height: 64px; }
+
+        .verse { display: none; }
+
+        .deck { flex-wrap: wrap; align-content: center; row-gap: 8px; column-gap: 8px; height: calc(var(--deck) - 16px); }
+
+        .group { gap: 6px; }
+
+        .segmented button { padding: 0 9px; font-size: 12px; }
+
+        #tools button span,
+        .text-button span { display: none; }
+
+        .round { width: 36px; height: 36px; }
+
+        .round--primary { width: 42px; height: 42px; }
+
+        .text-input { width: 7em; font-size: 14px; }
+      }
+
+      @media (max-width: 759px) and (max-height: 699px) {
+        .site__meta small,
+        .table { display: none; }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .verse { animation: none; }
+        .toast { transition: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="stage" aria-label="潮间带的剖面与平面"></canvas>
+
+    <main class="hud" id="hud">
+      <header class="masthead">
+        <h1>
+          <span class="masthead__zh">潮汐</span>
+          <span class="masthead__en">TIDELINE</span>
+        </h1>
+        <p class="masthead__variant">简易版 · 零依赖单文件</p>
+      </header>
+
+      <section class="site" aria-label="海岸与时间">
+        <div class="coast-tabs" id="coasts" role="radiogroup" aria-label="海岸"></div>
+        <p class="site__clock"><span id="clock">--:--</span><small id="zone"></small></p>
+        <label class="site__date"><span>日期</span><input type="date" id="date" min="1950-01-01" max="2100-12-30" /></label>
+        <p class="site__meta"><span id="moon"></span><small id="sun"></small></p>
+      </section>
+
+      <figure class="verse" id="verse" aria-live="polite">
+        <blockquote class="verse__zh" id="verse-zh" lang="zh-CN"></blockquote>
+        <figcaption class="verse__en" id="verse-en" lang="en"></figcaption>
+      </figure>
+
+      <section class="almanac" aria-label="潮汐读数">
+        <dl class="readouts">
+          <div class="readout readout--primary">
+            <dt>潮高</dt>
+            <dd><span id="r-height">0.00</span><small>米</small></dd>
+          </div>
+          <div class="readout">
+            <dt id="r-trend">正在涨潮</dt>
+            <dd><span id="r-rate">0</span><small>厘米每小时</small></dd>
+          </div>
+          <div class="readout">
+            <dt id="r-next-label">下次高潮</dt>
+            <dd><span id="r-next">--:--</span><small id="r-next-in"></small></dd>
+          </div>
+        </dl>
+        <div class="table">
+          <div class="table__plot" id="table-plot" role="slider" tabindex="0" aria-label="时间" aria-valuemin="0" aria-valuemax="1440">
+            <svg viewBox="0 0 1000 100" preserveAspectRatio="none" aria-hidden="true">
+              <line x1="0" x2="1000" class="table__msl" id="table-msl" />
+              <path class="table__area" id="table-area" />
+              <path class="table__line" id="table-line" />
+            </svg>
+            <div id="table-marks"></div>
+            <span class="table__head" id="table-head"><b id="table-clock">--:--</b></span>
+          </div>
+          <div class="table__day" id="table-day" aria-hidden="true"></div>
+          <div class="table__hours" aria-hidden="true">
+            <span style="left: 0%">00</span><span style="left: 12.5%">03</span><span style="left: 25%">06</span><span style="left: 37.5%">09</span><span style="left: 50%">12</span><span style="left: 62.5%">15</span><span style="left: 75%">18</span><span style="left: 87.5%">21</span><span style="left: 100%">24</span>
+          </div>
+        </div>
+      </section>
+
+      <button type="button" class="cut" id="cut" role="slider" aria-label="剖切位置：上下拖动选择剖面经过的沿岸位置" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50">A</button>
+
+      <footer class="deck">
+        <div class="group">
+          <button type="button" class="round round--primary" id="play" aria-label="暂停潮汐">
+            <svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path id="play-icon" d="M7.5 5v10M12.5 5v10" /></svg>
+          </button>
+          <div class="segmented speed" id="speeds" role="radiogroup" aria-label="时间流速">
+            <button type="button" role="radio" data-speed="200" aria-checked="false">1:200</button>
+            <button type="button" role="radio" data-speed="600" aria-checked="true">1:600</button>
+            <button type="button" role="radio" data-speed="3000" aria-checked="false">1:3000</button>
+          </div>
+          <button type="button" class="text-button" id="now" aria-label="回到此刻">
+            <svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="4.5" /><path d="M10 2.5v3M10 14.5v3M2.5 10h3M14.5 10h3" /></svg>
+            <span>回到此刻</span>
+          </button>
+        </div>
+
+        <div class="group">
+          <div class="segmented" id="tools" role="radiogroup" aria-label="书写工具">
+            <button type="button" role="radio" data-tool="pen" aria-checked="true" aria-label="手写">
+              <svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 16.5l.9-3.6 8.4-8.4a1.9 1.9 0 0 1 2.7 2.7l-8.4 8.4z" /><path d="M12 6l2.5 2.5" /></svg>
+              <span>手写</span>
+            </button>
+            <button type="button" role="radio" data-tool="text" aria-checked="false" aria-label="写字">
+              <svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M4.5 5.5V4h11v1.5M10 4v12M7.5 16h5" /></svg>
+              <span>写字</span>
+            </button>
+          </div>
+          <input class="text-input" id="text" maxlength="12" placeholder="写点什么" aria-label="要写在沙上的字" hidden />
+          <button type="button" class="text-button" id="erase" aria-label="抹平沙上的痕迹">
+            <svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 8.5c2.3-2 4.7-2 7 0s4.7 2 7 0M3 13.5c2.3-2 4.7-2 7 0s4.7 2 7 0" /></svg>
+            <span>抹平</span>
+          </button>
+        </div>
+
+        <div class="group">
+          <button type="button" class="round" id="sound" aria-pressed="false" aria-label="打开海浪声">
+            <svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 8h3l4-3.5v11l-4-3.5h-3z" /><path class="waves" d="M13.5 7.5q2.5 2.5 0 5M15.5 5q5 5 0 10" /><path class="strike" d="M13.5 8l4 4M17.5 8l-4 4" /></svg>
+          </button>
+          <button type="button" class="round" id="share" aria-label="复制分享链接">
+            <svg class="icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 12.5V3M6.5 6.5L10 3l3.5 3.5M4.5 11v5.5h11V11" /></svg>
+          </button>
+        </div>
+      </footer>
+    </main>
+
+    <p class="toast" id="toast" role="status" data-visible="false"></p>
+
+    <script>
+      (() => {
+        'use strict';
+
+        // ═══ 潮汐模型（与工程版同源） ═══════════════════════════════════
+        // 下方两行标记之间逐行移植自 tide-showcase/src/tide/model.ts、
+        // tide/lifecycle.ts 与 data/coasts.ts。工程版的 pnpm verify:tide 会把这一段原样取出，
+        // 放进 Node 与工程版逐小时对账（分潮表、振幅迟角、生命周期常数都必须一致）。
+        // 改动请两边同步，否则「同源」的验收会失败。周期表、TRACE_GONE 与 stepWet / stepTrace
+        // 页面本身不直接调用（场的推进把同一规则展开写进了循环），保留它们是为了逐字段对账。
+        // MODEL:BEGIN
+        const DEG = Math.PI / 180;
+        const J2000 = 2451545.0;
+
+        /** 各分潮的周期（小时），用于展示与验收 */
+        const PERIOD_HOURS = {
+          M2: 12.4206012,
+          S2: 12,
+          N2: 12.6583482,
+          K1: 23.9344696,
+          O1: 25.8193417,
+          M4: 6.2103006,
+        };
+
+        /** Doodson 平均经度（度），d 为距 J2000 的日数 */
+        function meanLongitudes(jd) {
+          const d = jd - J2000;
+          return {
+            s: 218.3164477 + 13.17639648 * d,
+            h: 280.4664567 + 0.98564736 * d,
+            p: 83.3532465 + 0.11140353 * d,
+          };
+        }
+
+        /** 平太阳时角 T（度）：UT 午夜为 180°，东经为正 */
+        function solarAngle(jd, lonDeg) {
+          const ut = (jd + 0.5) % 1;
+          return ut * 360 + 180 + lonDeg;
+        }
+
+        /** 分潮的天文相角 V（度）：M2 = 2τ、S2 = 2T，两者之差恰是 2 × 月相角 */
+        function astronomicalArgument(name, jd, lonDeg) {
+          const { s, h, p } = meanLongitudes(jd);
+          const T = solarAngle(jd, lonDeg);
+          const tau = T + h - s;
+          switch (name) {
+            case 'M2':
+              return 2 * tau;
+            case 'S2':
+              return 2 * T;
+            case 'N2':
+              return 2 * tau - s + p;
+            case 'K1':
+              return tau + s + 90;
+            case 'O1':
+              return tau - s - 90;
+            case 'M4':
+              return 4 * tau;
+          }
+          throw new Error(`未知分潮 ${name}`);
+        }
+
+        /** 潮位（米）：h(t) = Z0 + Σ Aᵢ·cos(Vᵢ − gᵢ) */
+        function tideHeight(model, jd, lonDeg) {
+          let h = model.z0;
+          for (const c of model.constituents) {
+            h += c.amp * Math.cos((astronomicalArgument(c.name, jd, lonDeg) - c.lag) * DEG);
+          }
+          return h;
+        }
+
+        /** 潮位变化率（米 / 小时），数值差分 */
+        function tideRate(model, jd, lonDeg) {
+          const dt = 1 / 1440;
+          return ((tideHeight(model, jd + dt, lonDeg) - tideHeight(model, jd - dt, lonDeg)) / (2 * dt)) / 24;
+        }
+
+        /** 月相角（度）：月日平均距角 D = s − h，0 为朔、180 为望 */
+        function moonPhaseAngle(jd) {
+          const { s, h } = meanLongitudes(jd);
+          return (((s - h) % 360) + 360) % 360;
+        }
+
+        /** 月面被照亮的比例 */
+        function moonIllumination(jd) {
+          return (1 - Math.cos(moonPhaseAngle(jd) * DEG)) / 2;
+        }
+
+        /** 月相名称 */
+        function moonPhaseName(jd) {
+          const a = moonPhaseAngle(jd);
+          const names = ['新月', '蛾眉月', '上弦月', '盈凸月', '满月', '亏凸月', '下弦月', '残月'];
+          return names[Math.round(a / 45) % 8];
+        }
+
+        /** 大潮 / 小潮 / 中潮：按 S2 与 M2 的相位差判断 */
+        function springNeap(jd) {
+          // cos(2D)：朔望为 1（同相叠加），上下弦为 −1（反相削减）
+          const k = Math.cos(2 * moonPhaseAngle(jd) * DEG);
+          if (k > 0.7) return '大潮';
+          if (k < -0.7) return '小潮';
+          return '中潮';
+        }
+
+        /** 在 [from, to] 内找高潮与低潮：先按 6 分钟步长找变号，再二分细化 */
+        function findExtrema(model, lonDeg, from, to) {
+          const step = 6 / 1440;
+          const out = [];
+          let prevRate = tideRate(model, from, lonDeg);
+          for (let t = from + step; t <= to; t += step) {
+            const rate = tideRate(model, t, lonDeg);
+            if ((prevRate > 0 && rate <= 0) || (prevRate < 0 && rate >= 0)) {
+              let lo = t - step;
+              let hi = t;
+              for (let i = 0; i < 20; i++) {
+                const mid = (lo + hi) / 2;
+                const r = tideRate(model, mid, lonDeg);
+                if (Math.sign(r) === Math.sign(prevRate)) lo = mid;
+                else hi = mid;
+              }
+              const jd = (lo + hi) / 2;
+              out.push({ jd, height: tideHeight(model, jd, lonDeg), kind: prevRate > 0 ? 'high' : 'low' });
+            }
+            prevRate = rate;
+          }
+          return out;
+        }
+
+        // 湿沙与痕迹的生命周期（模拟时间的小时）：
+        // 被水覆盖时湿度置 1、痕迹按 ERASE_HOURS 衰减；露出后湿度按 DRY_HOURS 变干，痕迹只被风按 WIND_HOURS 抹平。
+        const DRY_HOURS = 1.1;
+        const ERASE_HOURS = 0.3;
+        const WIND_HOURS = 60;
+        const FOAM_HOURS = 0.06;
+        const TRACE_GONE = 0.05;
+
+        function stepWet(wet, covered, dtHours) {
+          return covered ? 1 : wet * Math.exp(-dtHours / DRY_HOURS);
+        }
+
+        function stepTrace(trace, covered, dtHours) {
+          return trace * Math.exp(-dtHours / (covered ? ERASE_HOURS : WIND_HOURS));
+        }
+
+        /**
+         * 海岸预设：分潮振幅决定潮型，地形、涌浪与水色决定画面气质。
+         * 振幅是典型值而非某个港口的实测调和常数；坐标与时区只用于日照和当地钟面时间。
+         */
+        const COASTS = [
+          {
+            id: 'beach',
+            name: '细沙滩',
+            nameEn: 'Sand Beach',
+            lat: 36.05,
+            lon: 120.6,
+            tz: 'Asia/Shanghai',
+            facing: 100,
+            description: '开阔海岸，半日潮为主，沙坝外有一道碎浪',
+            model: {
+              z0: 0,
+              constituents: [
+                { name: 'M2', amp: 1.2, lag: 110 },
+                { name: 'S2', amp: 0.35, lag: 110 },
+                { name: 'K1', amp: 0.15, lag: 200 },
+                { name: 'O1', amp: 0.12, lag: 185 },
+              ],
+            },
+            terrain: 'beach',
+            seed: 17,
+            swell: { height: 0.55, period: 8.5, runup: 0.42 },
+            water: { deep: [0.012, 0.07, 0.11], shallow: [0.08, 0.36, 0.34], turbidity: 0.6 },
+          },
+          {
+            id: 'estuary',
+            name: '河口泥滩',
+            nameEn: 'Estuary Flat',
+            lat: 31.3,
+            lon: 121.9,
+            tz: 'Asia/Shanghai',
+            facing: 80,
+            description: '潮差大、滩面宽，涨潮快落潮慢，潮沟蜿蜒',
+            model: {
+              z0: 0,
+              constituents: [
+                { name: 'M2', amp: 1.85, lag: 60 },
+                { name: 'S2', amp: 0.6, lag: 60 },
+                { name: 'N2', amp: 0.34, lag: 42 },
+                { name: 'K1', amp: 0.26, lag: 170 },
+                { name: 'O1', amp: 0.19, lag: 152 },
+                { name: 'M4', amp: 0.2, lag: 30 },
+              ],
+            },
+            terrain: 'mudflat',
+            seed: 43,
+            swell: { height: 0.16, period: 5.5, runup: 0.14 },
+            water: { deep: [0.06, 0.055, 0.03], shallow: [0.24, 0.19, 0.1], turbidity: 2.2 },
+          },
+          {
+            id: 'inlet',
+            name: '内海',
+            nameEn: 'Inland Sea',
+            lat: 34.3,
+            lon: 133.0,
+            tz: 'Asia/Tokyo',
+            facing: 170,
+            description: '潮差小，日潮不等明显，礁石间藏着潮池',
+            model: {
+              z0: 0,
+              constituents: [
+                { name: 'M2', amp: 0.38, lag: 250 },
+                { name: 'S2', amp: 0.15, lag: 250 },
+                { name: 'K1', amp: 0.3, lag: 190 },
+                { name: 'O1', amp: 0.24, lag: 172 },
+              ],
+            },
+            terrain: 'rocky',
+            seed: 71,
+            swell: { height: 0.12, period: 4.5, runup: 0.1 },
+            water: { deep: [0.015, 0.07, 0.09], shallow: [0.08, 0.3, 0.27], turbidity: 0.35 },
+          },
+        ];
+        // MODEL:END
+
+        /** 十二段短诗，与工程版同一组：来与回、抹去与留下、写在沙上的东西 */
+        const POEMS = [
+          { zh: '潮水来的时候没有敲门，走的时候也没有关门。', en: 'The tide comes in without knocking, and leaves without closing the door.' },
+          { zh: '月亮在很远的地方，轻轻拉了一下海。', en: 'Far away, the moon gives the sea a gentle pull.' },
+          { zh: '写在沙上的字不是被擦掉，是被收回。', en: 'Words written in sand are not erased; they are taken back.' },
+          { zh: '每一道浪，都以为自己是第一道。', en: 'Every wave believes it is the first.' },
+          { zh: '退潮以后，海把一小片天空留在潮池里。', en: 'When the tide goes out, the sea leaves a little sky in the pools.' },
+          { zh: '湿沙记得水来过，干沙已经忘了。', en: 'Wet sand remembers the water; dry sand has already forgotten.' },
+          { zh: '脚印走向大海，大海也走向脚印。', en: 'Footprints walk toward the sea, and the sea walks toward the footprints.' },
+          { zh: '一天两次，海岸被重新写过。', en: 'Twice a day, the shore is written over again.' },
+          { zh: '涨与落之间，没有哪一刻是静止的。', en: 'Between rising and falling, no moment stands still.' },
+          { zh: '泡沫是浪留下的签名，很快就不作数了。', en: 'Foam is the signature a wave leaves, soon no longer binding.' },
+          { zh: '你留下的，海会替你保管一会儿。', en: 'What you leave behind, the sea will keep for you a while.' },
+          { zh: '大潮小潮，都是月亮换了一种说法。', en: 'Spring tide or neap, the moon is saying the same thing another way.' },
+        ];
+
+        // ═══ 日月与时区（移植自工程版 astro/sky.ts，约 0.5° 精度） ═════════
+        const JD_UNIX_EPOCH = 2440587.5;
+        const jdFromMs = (ms) => ms / 86400000 + JD_UNIX_EPOCH;
+        const msFromJd = (jd) => (jd - JD_UNIX_EPOCH) * 86400000;
+        const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+        const mix = (a, b, t) => a + (b - a) * t;
+        const smoothstep = (e0, e1, x) => {
+          const t = clamp((x - e0) / (e1 - e0), 0, 1);
+          return t * t * (3 - 2 * t);
+        };
+
+        /** 格林尼治平恒星时（弧度） */
+        function gmst(jd) {
+          const d = jd - J2000;
+          const r = ((280.46061837 + 360.98564736629 * d) % 360) * DEG;
+          return r < 0 ? r + Math.PI * 2 : r;
+        }
+
+        function toHorizontal(ra, dec, jd, lat, lon) {
+          const h = gmst(jd) + lon - ra;
+          const up = Math.sin(dec) * Math.sin(lat) + Math.cos(dec) * Math.cos(h) * Math.cos(lat);
+          const east = -Math.cos(dec) * Math.sin(h);
+          const north = Math.sin(dec) * Math.cos(lat) - Math.cos(dec) * Math.cos(h) * Math.sin(lat);
+          return { alt: Math.asin(clamp(up, -1, 1)), az: Math.atan2(east, north) };
+        }
+
+        function eclipticToHorizontal(lambda, beta, jd, lat, lon) {
+          const eps = (23.439 - 0.0000004 * (jd - J2000)) * DEG;
+          const ra = Math.atan2(Math.sin(lambda) * Math.cos(eps) - Math.tan(beta) * Math.sin(eps), Math.cos(lambda));
+          const dec = Math.asin(Math.sin(beta) * Math.cos(eps) + Math.cos(beta) * Math.sin(eps) * Math.sin(lambda));
+          return toHorizontal(ra, dec, jd, lat, lon);
+        }
+
+        /** 太阳地平坐标（天文年历低精度公式） */
+        function sunPosition(jd, latDeg, lonDeg) {
+          const n = jd - J2000;
+          const L = (280.46 + 0.9856474 * n) * DEG;
+          const g = (357.528 + 0.9856003 * n) * DEG;
+          const lambda = L + (1.915 * Math.sin(g) + 0.02 * Math.sin(2 * g)) * DEG;
+          return eclipticToHorizontal(lambda, 0, jd, latDeg * DEG, lonDeg * DEG);
+        }
+
+        /** 月球地平坐标：平经度加主要的中心差与出差项（约 1° 精度） */
+        function moonPosition(jd, latDeg, lonDeg) {
+          const d = jd - J2000;
+          const { s, h, p } = meanLongitudes(jd);
+          const M = (s - p) * DEG;
+          const D = (s - h) * DEG;
+          const F = (93.272 + 13.22935 * d) * DEG;
+          const lambda = (s + 6.289 * Math.sin(M) + 1.274 * Math.sin(2 * D - M) + 0.658 * Math.sin(2 * D)) * DEG;
+          const beta = 5.128 * Math.sin(F) * DEG;
+          return eclipticToHorizontal(lambda, beta, jd, latDeg * DEG, lonDeg * DEG);
+        }
+
+        // 时区：用 Intl 求本地时间，不引入时区库
+        const formatters = new Map();
+
+        function partsFormatter(tz) {
+          let f = formatters.get(tz);
+          if (!f) {
+            f = new Intl.DateTimeFormat('en-US', {
+              timeZone: tz,
+              hourCycle: 'h23',
+              year: 'numeric',
+              month: 'numeric',
+              day: 'numeric',
+              hour: 'numeric',
+              minute: 'numeric',
+              second: 'numeric',
+            });
+            formatters.set(tz, f);
+          }
+          return f;
+        }
+
+        function readParts(tz, ms) {
+          const out = {};
+          for (const p of partsFormatter(tz).formatToParts(new Date(ms))) out[p.type] = Number(p.value);
+          return out;
+        }
+
+        /** 某一时刻在指定时区相对 UTC 的偏移（分钟） */
+        function tzOffsetMinutes(tz, ms) {
+          const p = readParts(tz, ms);
+          const asUtc = Date.UTC(p.year, p.month - 1, p.day, p.hour % 24, p.minute, p.second);
+          return Math.round((asUtc - Math.floor(ms / 1000) * 1000) / 60000);
+        }
+
+        /** 当地某日零点的儒略日 */
+        function localMidnightJd(date, tz) {
+          const [y, m, d] = date.split('-').map(Number);
+          const guess = Date.UTC(y, m - 1, d);
+          return jdFromMs(guess - tzOffsetMinutes(tz, guess + 12 * 3600000) * 60000);
+        }
+
+        const pad2 = (n) => String(n).padStart(2, '0');
+
+        /** 儒略日 → 当地日期与钟面时间 */
+        function localParts(jd, tz) {
+          const p = readParts(tz, msFromJd(jd));
+          const hour = p.hour % 24;
+          return { date: `${p.year}-${pad2(p.month)}-${pad2(p.day)}`, clock: `${pad2(hour)}:${pad2(p.minute)}`, hours: hour + p.minute / 60 };
+        }
+
+        function shiftDate(date, days) {
+          const [y, m, d] = date.split('-').map(Number);
+          const next = new Date(Date.UTC(y, m - 1, d + days));
+          const clamped = Math.min(Math.max(next.getTime(), Date.UTC(1950, 0, 1)), Date.UTC(2100, 11, 30));
+          return new Date(clamped).toISOString().slice(0, 10);
+        }
+
+        // ═══ 一天的潮汐（移植自工程版 tide/day.ts） ═══════════════════════
+        /** 海岸潮位的理论上下限：各分潮振幅之和 */
+        function tideEnvelope(c) {
+          const sum = c.model.constituents.reduce((s, k) => s + k.amp, 0);
+          return { min: c.model.z0 - sum, max: c.model.z0 + sum };
+        }
+
+        /** 海图基准面：理论最低潮面向下取整到 0.1 米，潮高从这里起算 */
+        function chartDatum(c) {
+          return Math.floor(tideEnvelope(c).min * 10) / 10;
+        }
+
+        /** 太阳高度（度）→ 时间轴颜色 */
+        function daylightColor(alt) {
+          const stops = [
+            [30, [232, 226, 210]],
+            [8, [236, 214, 176]],
+            [0, [226, 150, 104]],
+            [-6, [110, 86, 118]],
+            [-12, [34, 44, 78]],
+            [-18, [12, 16, 30]],
+          ];
+          if (alt >= stops[0][0]) return `rgb(${stops[0][1].join(' ')})`;
+          for (let i = 1; i < stops.length; i++) {
+            const [a0, c0] = stops[i - 1];
+            const [a1, c1] = stops[i];
+            if (alt >= a1) {
+              const t = (a0 - alt) / (a0 - a1);
+              return `rgb(${c0.map((v, k) => Math.round(v + (c1[k] - v) * t)).join(' ')})`;
+            }
+          }
+          return `rgb(${stops[stops.length - 1][1].join(' ')})`;
+        }
+
+        /** 当地某一天的潮位曲线、高低潮与日照色带 */
+        function describeDay(c, date) {
+          const start = localMidnightJd(date, c.tz);
+          const end = localMidnightJd(shiftDate(date, 1), c.tz);
+          const span = end - start;
+          const curve = [];
+          const steps = Math.round((span * 1440) / 10);
+          for (let i = 0; i <= steps; i++) {
+            const jd = start + (span * i) / steps;
+            curve.push([i / steps, tideHeight(c.model, jd, c.lon)]);
+          }
+          const extrema = findExtrema(c.model, c.lon, start, end).map((e) => ({
+            ...e,
+            p: (e.jd - start) / span,
+            clock: localParts(e.jd, c.tz).clock,
+          }));
+          const colors = [];
+          for (let i = 0; i <= 48; i++) {
+            const alt = sunPosition(start + (span * i) / 48, c.lat, c.lon).alt / DEG;
+            colors.push(`${daylightColor(alt)} ${((i / 48) * 100).toFixed(1)}%`);
+          }
+          return { date, start, end, curve, extrema, gradient: `linear-gradient(90deg, ${colors.join(', ')})` };
+        }
+
+        // ═══ 天光 ═════════════════════════════════════════════════════════
+        // 关键帧取自工程版 scene/palette.ts 的 sRGB 色值；画在纸上要淡一些，
+        // 白天把天色向纸色拉 35%，像一层水彩。light 是照在沙与水上的光色乘子。
+        const SKY_KEYS = [
+          { alt: 40, zenith: [62, 118, 187], horizon: [184, 202, 214], glow: [255, 241, 220], glowI: 0.25, light: [1, 0.99, 0.96] },
+          { alt: 12, zenith: [70, 116, 173], horizon: [217, 205, 182], glow: [255, 220, 176], glowI: 0.55, light: [1, 0.97, 0.9] },
+          { alt: 3, zenith: [70, 99, 154], horizon: [231, 174, 131], glow: [255, 158, 94], glowI: 1.2, light: [0.98, 0.86, 0.74] },
+          { alt: -1, zenith: [44, 63, 110], horizon: [201, 140, 133], glow: [255, 130, 80], glowI: 1.3, light: [0.74, 0.62, 0.62] },
+          { alt: -5, zenith: [23, 34, 67], horizon: [93, 76, 102], glow: [176, 96, 90], glowI: 0.8, light: [0.42, 0.41, 0.5] },
+          { alt: -10, zenith: [11, 18, 39], horizon: [29, 36, 64], glow: [58, 46, 74], glowI: 0.25, light: [0.27, 0.29, 0.38] },
+          { alt: -16, zenith: [5, 10, 23], horizon: [14, 21, 40], glow: [0, 0, 0], glowI: 0, light: [0.2, 0.22, 0.3] },
+        ];
+        const PAPER = [240, 235, 224];
+        const NIGHT_PAPER = [9, 11, 16];
+
+        const mixRgb = (a, b, t) => [mix(a[0], b[0], t), mix(a[1], b[1], t), mix(a[2], b[2], t)];
+        const css = (c, a = 1) => `rgb(${Math.round(c[0])} ${Math.round(c[1])} ${Math.round(c[2])} / ${a})`;
+
+        /** 某一刻的日月位置、天色与光色 */
+        function skyState(jd, c) {
+          const sun = sunPosition(jd, c.lat, c.lon);
+          const moon = moonPosition(jd, c.lat, c.lon);
+          const sunAlt = sun.alt / DEG;
+          const moonAlt = moon.alt / DEG;
+          let i = 0;
+          while (i < SKY_KEYS.length - 1 && sunAlt < SKY_KEYS[i + 1].alt) i++;
+          const a = SKY_KEYS[i];
+          const b = SKY_KEYS[Math.min(i + 1, SKY_KEYS.length - 1)];
+          const t = a === b ? 0 : clamp((a.alt - sunAlt) / (a.alt - b.alt), 0, 1);
+          const daylight = smoothstep(-7, 5, sunAlt);
+          const night = 1 - smoothstep(-14, -4, sunAlt);
+          const illum = moonIllumination(jd);
+          // 月夜不是纯黑：满月时天顶泛出深蓝，沙面也有一层冷光
+          const moonStrength = illum * smoothstep(-2, 12, moonAlt) * night;
+          let zenith = mixRgb(a.zenith, b.zenith, t);
+          let horizon = mixRgb(a.horizon, b.horizon, t);
+          zenith = mixRgb(zenith, PAPER, 0.35 * daylight).map((v, k) => v + [10, 18, 38][k] * moonStrength);
+          horizon = mixRgb(horizon, PAPER, 0.3 * daylight).map((v, k) => v + [14, 20, 36][k] * moonStrength);
+          const light = mixRgb(a.light, b.light, t).map((v, k) => v + [0.07, 0.09, 0.13][k] * moonStrength);
+          return {
+            sun,
+            moon,
+            sunAlt,
+            moonAlt,
+            illum,
+            phase: moonPhaseAngle(jd),
+            zenith,
+            horizon,
+            glow: mixRgb(a.glow, b.glow, t),
+            glowI: mix(a.glowI, b.glowI, t),
+            light,
+            daylight,
+            night,
+          };
+        }
+
+        // ═══ 程序化海岸（逐行移植自工程版 scene/terrain.ts） ═══════════════
+        // x 为离岸方向（正向指海），z 为沿岸方向，单位米，高度相对平均海面。
+        function hash2(ix, iz, seed) {
+          let h = Math.imul(ix, 374761393) ^ Math.imul(iz, 668265263) ^ Math.imul(seed, 2147483647);
+          h = Math.imul(h ^ (h >>> 13), 1274126177);
+          return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+        }
+
+        function valueNoise(x, z, seed) {
+          const ix = Math.floor(x);
+          const iz = Math.floor(z);
+          const fx = x - ix;
+          const fz = z - iz;
+          const ux = fx * fx * (3 - 2 * fx);
+          const uz = fz * fz * (3 - 2 * fz);
+          const a = hash2(ix, iz, seed);
+          const b = hash2(ix + 1, iz, seed);
+          const c = hash2(ix, iz + 1, seed);
+          const d = hash2(ix + 1, iz + 1, seed);
+          return a + (b - a) * ux + (c - a) * uz + (a - b - c + d) * ux * uz;
+        }
+
+        function fbm(x, z, seed, octaves = 4) {
+          let sum = 0;
+          let amp = 0.5;
+          let norm = 0;
+          for (let i = 0; i < octaves; i++) {
+            sum += amp * valueNoise(x, z, seed + i * 101);
+            norm += amp;
+            x *= 2.03;
+            z *= 2.03;
+            amp *= 0.5;
+          }
+          return sum / norm;
+        }
+
+        const sigmoid = (x) => 0.5 * (1 + Math.tanh(x));
+        const bump = (x, c, w) => Math.exp(-(((x - c) / w) ** 2));
+
+        /** 平滑取小：两条剖面线的圆角衔接 */
+        function smoothMin(a, b, k) {
+          const h = Math.max(0, Math.min(1, 0.5 + (0.5 * (b - a)) / k));
+          return b + (a - b) * h - k * h * (1 - h);
+        }
+
+        function sampleBeach(x, z, seed) {
+          // 沿岸方向：低频起伏 + 滩角（beach cusps）
+          const shift = (valueNoise(z / 90, 0.5, seed) - 0.5) * 16 + Math.sin(z / 6.2 + valueNoise(z / 30, 3.1, seed) * 4) * 1.3 * bump(x, 20, 18);
+          const xs = x + shift;
+          const dune = 2.5 + 3.4 * sigmoid((-xs - 58) / 9) + (fbm(x / 14, z / 14, seed + 7) - 0.5) * 2.4 * sigmoid((-xs - 42) / 6);
+          const face = 2.35 - (xs + 12) / 19;
+          let h = smoothMin(dune, face, 1.6);
+          // 槽沟与沙坝
+          h += -0.45 * bump(xs, 76, 9) + 1.25 * bump(xs, 94, 11) * (0.8 + 0.4 * valueNoise(z / 40, 9.3, seed));
+          h = Math.max(h, -5.2 - (xs - 150) * 0.01);
+          // 下滩的礁石与潮池
+          const rockField = Math.max(0, fbm(x / 9, z / 9, seed + 31) - 0.62) * 5 * bump(z, 55, 22) * bump(xs, 52, 14);
+          h += rockField * 1.6;
+          const pool = bump(x, 46, 3.2) * bump(z, 48, 4.5) + bump(x, 58, 2.6) * bump(z, 63, 3.2);
+          h -= pool * 0.35;
+          h += (fbm(x / 3, z / 3, seed + 3) - 0.5) * 0.08;
+          return { height: h, rock: Math.min(1, rockField * 3), mud: 0, dune: sigmoid((-xs - 50) / 5) };
+        }
+
+        function sampleMudflat(x, z, seed) {
+          const shift = (valueNoise(z / 110, 0.3, seed) - 0.5) * 20;
+          const xs = x + shift;
+          const marsh = 3.35 + (fbm(x / 8, z / 8, seed + 5) - 0.5) * 0.5;
+          const flat = 3.1 - (xs + 36) / 44;
+          let h = smoothMin(marsh, flat, 0.8);
+          // 滩外缘变陡，落到潮沟主槽
+          h -= Math.max(0, xs - 112) * 0.06;
+          h = Math.max(h, -4.6);
+          // 潮沟：一条主沟加两条支沟，向海变宽变深
+          const t = Math.max(0, xs + 30);
+          const main = 18 * Math.sin(xs / 37) + (valueNoise(xs / 50, 1.7, seed) - 0.5) * 30;
+          const w = 2.4 + t / 26;
+          let creek = bump(z, main, w) * (0.35 + t / 150);
+          const b1 = main + 30 + 14 * Math.sin(xs / 23);
+          creek = Math.max(creek, bump(z, b1, 1.6 + t / 60) * 0.4 * sigmoid((xs - 20) / 12));
+          const b2 = main - 42 + 10 * Math.sin(xs / 19 + 1.3);
+          creek = Math.max(creek, bump(z, b2, 1.4 + t / 70) * 0.32 * sigmoid((xs - 45) / 10));
+          h -= creek * sigmoid((xs + 28) / 4);
+          h += (fbm(x / 4, z / 4, seed + 9) - 0.5) * 0.05;
+          return { height: h, rock: 0, mud: sigmoid((-h + 3.0) / 0.15), dune: 0 };
+        }
+
+        function sampleRocky(x, z, seed) {
+          const shift = (valueNoise(z / 70, 0.9, seed) - 0.5) * 14;
+          const xs = x + shift;
+          const slope = 1.6 + 5.5 * sigmoid((-xs - 38) / 10) + (fbm(x / 12, z / 12, seed + 3) - 0.5) * 1.8 * sigmoid((-xs - 30) / 6);
+          const beach = 1.5 - (xs + 25) / 11;
+          let h = smoothMin(slope, beach, 1.2);
+          // 浪蚀平台：在 −0.45 米附近铺开，之后跌入深水
+          const platform = -0.45 + (fbm(x / 9, z / 9, seed + 17) - 0.5) * 0.28;
+          const platformMask = sigmoid((xs + 2) / 3) * (1 - sigmoid((xs - 42) / 4));
+          h = Math.max(h, platform * platformMask + (h - 10) * (1 - platformMask));
+          h = xs > 42 ? Math.min(h, -0.6 - (xs - 42) * 0.18) : h;
+          h = Math.max(h, -4.2);
+          // 散落的巨石：圆润的鼓包，平台上与滩边都有
+          let rock = 0;
+          for (let i = 0; i < 46; i++) {
+            const bx = -14 + hash2(i, 11, seed) * 58;
+            const bz = -95 + hash2(i, 12, seed) * 190;
+            const r = 1.4 + hash2(i, 13, seed) * 3.2;
+            const d = ((x - bx) / r) ** 2 + ((z - bz) / (r * (0.7 + hash2(i, 14, seed) * 0.6))) ** 2;
+            if (d < 1) rock = Math.max(rock, Math.sqrt(1 - d) * (0.5 + hash2(i, 15, seed) * 0.9));
+          }
+          rock *= 1 + (fbm(x / 1.6, z / 1.6, seed + 29) - 0.5) * 0.5;
+          h += rock;
+          // 潮池：平台上的圆坑
+          let pool = 0;
+          for (let i = 0; i < 7; i++) {
+            const cx = 6 + hash2(i, 1, seed) * 30;
+            const cz = -60 + hash2(i, 2, seed) * 120;
+            pool = Math.max(pool, bump(x, cx, 2 + hash2(i, 3, seed) * 3) * bump(z, cz, 2.5 + hash2(i, 4, seed) * 4));
+          }
+          h -= pool * 0.45 * platformMask;
+          return {
+            height: h,
+            rock: Math.min(1, platformMask * 0.8 + Math.min(1, rock * 4) + sigmoid((-xs - 32) / 3) * 0.85),
+            mud: 0,
+            dune: 0,
+          };
+        }
+
+        const SAMPLERS = { beach: sampleBeach, mudflat: sampleMudflat, rocky: sampleRocky };
+
+        /**
+         * 简易版自己的取景：宽屏把沙丘到沙坝都收进来，窄屏只看潮间带。
+         * top / bottom 是剖面纵向的取值范围（米），cut 是默认剖切位置，center 是平面沿岸方向的中心。
+         */
+        const VIEWS = {
+          beach: { wide: [-84, 118], narrow: [-34, 84], top: 4.4, bottom: -4.0, cut: 47, center: 40 },
+          estuary: { wide: [-64, 166], narrow: [-36, 150], top: 4.6, bottom: -4.6, cut: 20, center: 12 },
+          inlet: { wide: [-54, 72], narrow: [-34, 52], top: 3.4, bottom: -3.2, cut: 38.6, center: 36 },
+        };
+
+        // ═══ 湿度 / 痕迹 / 泡沫场 ═══════════════════════════════════════════
+        // 与平面同分辨率的一张网格（正方形格子），规则与工程版场着色器一致：
+        // 被水（含上冲水膜）覆盖时湿度置 1、痕迹按 ERASE_HOURS 衰减、水边留下泡沫；露出后各自衰减。
+        const field = {};
+
+        // 材质色（sRGB）：干、湿两套，平面与剖面共用
+        const SAND = { dry: [226, 211, 178], wet: [166, 148, 114] };
+        const MUD = { dry: [158, 144, 116], wet: [106, 94, 72] };
+        const ROCK = { dry: [150, 142, 128], wet: [98, 92, 84] };
+        const GRASS = { dry: [168, 166, 124], wet: [128, 128, 92] };
+
+        function materialColor(s, key) {
+          let c = SAND[key];
+          if (s.mud > 0) c = mixRgb(c, MUD[key], s.mud);
+          if (s.dune > 0) c = mixRgb(c, GRASS[key], s.dune * 0.75);
+          if (s.rock > 0) c = mixRgb(c, ROCK[key], s.rock);
+          return c;
+        }
+
+        /** 按当前视口为海岸建一张场：x 跨度取自取景，沿岸跨度按平面能占的高度换算 */
+        function buildField(c) {
+          const v = VIEWS[c.id];
+          const narrow = window.innerWidth < 760;
+          const [x0, x1] = narrow ? v.narrow : v.wide;
+          const xSpan = x1 - x0;
+          const deck = narrow ? 124 : 76;
+          const planPx = (window.innerHeight - deck) * (narrow ? 0.3 : 0.32);
+          const zSpan = clamp(planPx / (window.innerWidth / xSpan), xSpan * 0.22, xSpan * 1.1);
+          let nx = narrow ? 400 : clamp(Math.round(window.innerWidth * 0.58), 560, 840);
+          let nz = Math.max(24, Math.round((nx * zSpan) / xSpan));
+          // 场每帧都要整张推进与着色，格子数封顶
+          const budget = 240000;
+          if (nx * nz > budget) {
+            const k = Math.sqrt(budget / (nx * nz));
+            nx = Math.round(nx * k);
+            nz = Math.round(nz * k);
+          }
+          const cell = xSpan / nx;
+          const z0 = v.center - (nz * cell) / 2;
+          const n = nx * nz;
+          const sampler = SAMPLERS[c.terrain];
+          const H = new Float32Array(n);
+          const dry = new Float32Array(n * 3);
+          const wetC = new Float32Array(n * 3);
+          for (let j = 0; j < nz; j++) {
+            const z = z0 + (j + 0.5) * cell;
+            for (let i = 0; i < nx; i++) {
+              const k = j * nx + i;
+              const s = sampler(x0 + (i + 0.5) * cell, z, c.seed);
+              H[k] = s.height;
+              const d = materialColor(s, 'dry');
+              const w = materialColor(s, 'wet');
+              dry[k * 3] = d[0];
+              dry[k * 3 + 1] = d[1];
+              dry[k * 3 + 2] = d[2];
+              wetC[k * 3] = w[0];
+              wetC[k * 3 + 1] = w[1];
+              wetC[k * 3 + 2] = w[2];
+            }
+          }
+          // 地貌晕渲（光从左上来）与纸纹，一次性烘进底色；
+          // 泡沫花边的疏密图案也在这里算好，渲染循环里只做取值。
+          const lace = new Float32Array(n);
+          let seed = 0x2f6e2b1;
+          const random = () => {
+            seed = (seed * 1664525 + 1013904223) >>> 0;
+            return seed / 4294967296;
+          };
+          for (let j = 0; j < nz; j++) {
+            for (let i = 0; i < nx; i++) {
+              const k = j * nx + i;
+              const gx = (H[j * nx + Math.min(nx - 1, i + 1)] - H[j * nx + Math.max(0, i - 1)]) / (2 * cell);
+              const gz = (H[Math.min(nz - 1, j + 1) * nx + i] - H[Math.max(0, j - 1) * nx + i]) / (2 * cell);
+              const shade = 1 + 0.36 * Math.tanh((gx * 0.7 + gz * 0.7) * 4);
+              const grain = (random() - 0.5) * 12;
+              for (let ch = 0; ch < 3; ch++) {
+                dry[k * 3 + ch] = dry[k * 3 + ch] * shade + grain;
+                wetC[k * 3 + ch] = wetC[k * 3 + ch] * (0.5 + 0.5 * shade) + grain * 0.6;
+              }
+              const x = x0 + (i + 0.5) * cell;
+              const z = z0 + (j + 0.5) * cell;
+              lace[k] = smoothstep(0.36, 0.66, fbm(x / 0.9, z / 0.9, 77, 3));
+            }
+          }
+          // 上冲相位的行列分量：swellPhase = x / λ + t / T + f(z)
+          const T = c.swell.period;
+          const xPhase = new Float32Array(nx);
+          for (let i = 0; i < nx; i++) xPhase[i] = (x0 + (i + 0.5) * cell) / (5.2 * T);
+          const zPhase = new Float32Array(nz);
+          const zNoise = new Float32Array(nz);
+          for (let j = 0; j < nz; j++) {
+            const z = z0 + (j + 0.5) * cell;
+            zPhase[j] = z * 0.011 + 0.35 * Math.sin(z * 0.021 + 1.3);
+            zNoise[j] = z * 0.035;
+          }
+          Object.assign(field, {
+            coast: c,
+            x0,
+            x1,
+            z0,
+            z1: z0 + nz * cell,
+            nx,
+            nz,
+            n,
+            cell,
+            center: v.center,
+            H,
+            dry,
+            wetC,
+            lace,
+            xPhase,
+            zPhase,
+            zNoise,
+            wet: new Float32Array(n),
+            trace: new Float32Array(n),
+            foam: new Float32Array(n),
+            depth: new Float32Array(n),
+            image: new ImageData(nx, nz),
+          });
+          planBuffer.width = nx;
+          planBuffer.height = nz;
+        }
+
+        /** 双线性取场内地形高度 */
+        function fieldHeight(x, z) {
+          const f = field;
+          const fx = clamp((x - f.x0) / f.cell - 0.5, 0, f.nx - 1.001);
+          const fz = clamp((z - f.z0) / f.cell - 0.5, 0, f.nz - 1.001);
+          const i = Math.floor(fx);
+          const j = Math.floor(fz);
+          const tx = fx - i;
+          const tz = fz - j;
+          const k = j * f.nx + i;
+          const a = f.H[k] + (f.H[k + 1] - f.H[k]) * tx;
+          const b = f.H[k + f.nx] + (f.H[k + f.nx + 1] - f.H[k + f.nx]) * tx;
+          return a + (b - a) * tz;
+        }
+
+        /** 近岸系数：静水深小于一米多时上冲水膜才起作用 */
+        const shoreFactor = (still) => 1 - smoothstep(0.2, 1.4, still);
+
+        /** 上冲：快速涌上、缓慢回落，每道浪强弱不同（与工程版 swashLift 同一公式） */
+        function swashLift(phase, zNoise, runup) {
+          const k = Math.floor(phase);
+          const s = phase - k;
+          if (s >= 0.96) return 0;
+          const strength = 0.55 + 0.45 * valueNoise(k * 1.37, zNoise, 5);
+          return runup * strength * smoothstep(0, 0.18, s) * (1 - smoothstep(0.18, 0.96, s));
+        }
+
+        /** 推进一步：按水深更新湿度、痕迹与泡沫 */
+        function stepField(level, time, dtHours) {
+          const f = field;
+          const { nx, nz, H, wet, trace, foam, depth, xPhase, zPhase, zNoise } = f;
+          const runup = f.coast.swell.runup;
+          const tPhase = time / f.coast.swell.period;
+          const kDry = Math.exp(-dtHours / DRY_HOURS);
+          const kErase = Math.exp(-dtHours / ERASE_HOURS);
+          const kWind = Math.exp(-dtHours / WIND_HOURS);
+          const kFoam = Math.exp(-dtHours / FOAM_HOURS);
+          const reach = -runup - 0.02;
+          for (let j = 0; j < nz; j++) {
+            const zp = zPhase[j] + tPhase;
+            const zn = zNoise[j];
+            let k = j * nx;
+            for (let i = 0; i < nx; i++, k++) {
+              const still = level - H[k];
+              let d = still;
+              // 只有水边一带才可能被上冲水膜够到
+              if (still > reach && still < 1.4) d += swashLift(xPhase[i] + zp, zn, runup) * shoreFactor(still);
+              depth[k] = d;
+              if (d > 0) {
+                wet[k] = 1;
+                trace[k] *= kErase;
+                foam[k] = d < 0.05 ? 1 : foam[k] * kFoam * (1 - smoothstep(0.1, 0.4, d));
+              } else {
+                wet[k] *= kDry;
+                trace[k] *= kWind;
+                foam[k] *= kFoam;
+              }
+            }
+          }
+        }
+
+        /** 打开、换海岸或跳转时间后先回放三小时，让湿沙带一开始就在该在的位置 */
+        function warmup() {
+          const steps = 36;
+          const dt = 3 / steps;
+          for (let i = steps; i >= 1; i--) stepField(levelAt(state.jd - (i * dt) / 24), state.time - i * 3.7, dt);
+        }
+
+        /** 软圆笔触，以取大混合写进痕迹 */
+        function addDab(x, z, radius, strength) {
+          const f = field;
+          const ci = (x - f.x0) / f.cell - 0.5;
+          const cj = (z - f.z0) / f.cell - 0.5;
+          const r = Math.max(radius / f.cell, 0.75);
+          const i0 = Math.max(0, Math.floor(ci - r));
+          const i1 = Math.min(f.nx - 1, Math.ceil(ci + r));
+          const j0 = Math.max(0, Math.floor(cj - r));
+          const j1 = Math.min(f.nz - 1, Math.ceil(cj + r));
+          for (let j = j0; j <= j1; j++) {
+            for (let i = i0; i <= i1; i++) {
+              const d2 = ((i - ci) ** 2 + (j - cj) ** 2) / (r * r);
+              if (d2 >= 1) continue;
+              const v = strength * (1 - d2 * d2);
+              const k = j * f.nx + i;
+              if (v > f.trace[k]) f.trace[k] = v;
+            }
+          }
+        }
+
+        function addStroke(xa, za, xb, zb, radius) {
+          const len = Math.hypot(xb - xa, zb - za);
+          const steps = Math.max(1, Math.ceil(len / (radius * 0.45)));
+          for (let s = 1; s <= steps; s++) addDab(mix(xa, xb, s / steps), mix(za, zb, s / steps), radius, 0.9);
+        }
+
+        // 文字按两倍格子分辨率排版，再 2×2 平均成场里的痕迹，笔画边缘才不发毛
+        const glyphCanvas = document.createElement('canvas');
+        const glyphContext = glyphCanvas.getContext('2d', { willReadFrequently: true });
+
+        /** 把一行字压进沙里：以 (x, z) 为中心，字高 heightM 米 */
+        function stampText(text, x, z, heightM) {
+          const f = field;
+          const px = Math.max(8, Math.round((heightM / f.cell) * 2));
+          const font = `600 ${px}px ${getComputedStyle(document.documentElement).getPropertyValue('--serif')}`;
+          glyphContext.font = font;
+          const width = Math.ceil(glyphContext.measureText(text).width + px * 0.4);
+          glyphCanvas.width = width + (width % 2);
+          glyphCanvas.height = Math.ceil(px * 1.4 / 2) * 2;
+          glyphContext.font = font;
+          glyphContext.fillStyle = '#fff';
+          glyphContext.textAlign = 'center';
+          glyphContext.textBaseline = 'middle';
+          glyphContext.fillText(text, glyphCanvas.width / 2, glyphCanvas.height / 2);
+          const alpha = glyphContext.getImageData(0, 0, glyphCanvas.width, glyphCanvas.height).data;
+          const gw = glyphCanvas.width / 2;
+          const gh = glyphCanvas.height / 2;
+          const i0 = Math.round((x - f.x0) / f.cell - gw / 2);
+          const j0 = Math.round((z - f.z0) / f.cell - gh / 2);
+          for (let v = 0; v < gh; v++) {
+            const j = j0 + v;
+            if (j < 0 || j >= f.nz) continue;
+            for (let u = 0; u < gw; u++) {
+              const i = i0 + u;
+              if (i < 0 || i >= f.nx) continue;
+              const p = (v * 2 * glyphCanvas.width + u * 2) * 4 + 3;
+              const a = (alpha[p] + alpha[p + 4] + alpha[p + glyphCanvas.width * 4] + alpha[p + glyphCanvas.width * 4 + 4]) / 1020;
+              const k = j * f.nx + i;
+              const value = a * 0.95;
+              if (value > f.trace[k]) f.trace[k] = value;
+            }
+          }
+        }
+
+        /** 开场时沙上已有一串脚印：有人走向水边，又沿着水边走远 */
+        function walkFootprints() {
+          const f = field;
+          const c = f.coast;
+          const high = tideEnvelope(c).max;
+          let z = f.z0 + (f.z1 - f.z0) * 0.18;
+          let x = shorelineX(high * 0.75, z) - 7;
+          let heading = 0.35;
+          const stride = 0.86;
+          for (let i = 0; i < 90; i++) {
+            const target = i < 24 ? 0.3 : 1.42;
+            heading += (target - heading) * 0.08 + Math.sin(i * 0.7) * 0.02;
+            x += Math.cos(heading) * stride;
+            z += Math.sin(heading) * stride;
+            if (z > f.z1 - 2) break;
+            const side = i % 2 === 0 ? 1 : -1;
+            addDab(x - Math.sin(heading) * 0.2 * side, z + Math.cos(heading) * 0.2 * side, 0.34, 0.7);
+          }
+        }
+
+        /** 某一沿岸位置上，静水位与地形相交的离岸距离（从陆地往海里找第一处没入水下的点） */
+        function shorelineX(level, z) {
+          const f = field;
+          for (let x = f.x0; x <= f.x1; x += f.cell * 0.5) {
+            if (fieldHeight(x, z) < level) return x;
+          }
+          return f.x1;
+        }
+
+        // ═══ 状态 ═════════════════════════════════════════════════════════
+        const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        const state = {
+          coastIndex: 0,
+          jd: jdFromMs(Date.now()),
+          time: 0,
+          speed: reduceMotion ? 200 : 600,
+          playing: true,
+          tool: 'pen',
+          cut: 0,
+          level: 0,
+          needsWarmup: true,
+          tone: 1,
+          toneTarget: null,
+          toneFrom: 1,
+          toneStart: 0,
+        };
+        const coast = () => COASTS[state.coastIndex];
+        const levelAt = (jd) => tideHeight(coast().model, jd, coast().lon);
+
+        /** 从地址栏还原：?coast=beach&date=2026-09-30&time=14:30（时间为该海岸当地时间） */
+        function readUrl() {
+          const p = new URLSearchParams(window.location.search);
+          const found = COASTS.findIndex((c) => c.id === p.get('coast'));
+          state.coastIndex = Math.max(0, found);
+          const c = coast();
+          const date = p.get('date') ?? '';
+          const time = p.get('time') ?? '';
+          const year = parseInt(date.slice(0, 4), 10);
+          if (/^\d{4}-\d{2}-\d{2}$/.test(date) && year >= 1950 && year <= 2100) {
+            const [hh, mm] = /^\d{1,2}:\d{2}$/.test(time) ? time.split(':').map(Number) : [12, 0];
+            state.jd = localMidnightJd(date, c.tz) + (Math.min(hh, 23) * 60 + Math.min(mm, 59)) / 1440;
+          }
+        }
+
+        function buildUrl() {
+          const p = new URLSearchParams();
+          const local = localParts(state.jd, coast().tz);
+          p.set('coast', coast().id);
+          p.set('date', local.date);
+          p.set('time', local.clock);
+          return `${window.location.pathname}?${p.toString()}`;
+        }
+
+        // ═══ 版式 ═════════════════════════════════════════════════════════
+        const canvas = document.getElementById('stage');
+        const ctx = canvas.getContext('2d', { alpha: false });
+        const planBuffer = document.createElement('canvas');
+        const planContext = planBuffer.getContext('2d');
+        let W = 0;
+        let H = 0;
+        let dpr = Math.min(window.devicePixelRatio || 1, 2);
+        const L = {};
+
+        /**
+         * 剖面与平面共用同一横向比例 sx（像素 / 米），竖向对齐，水边线可以直接投影下来；
+         * 剖面纵向另取比例 sy，并在角上标出「垂直放大」倍数。
+         */
+        function layout() {
+          W = canvas.clientWidth;
+          H = canvas.clientHeight;
+          canvas.width = Math.round(W * dpr);
+          canvas.height = Math.round(H * dpr);
+          const v = VIEWS[coast().id];
+          const narrow = W < 760;
+          const deck = narrow ? 124 : 76;
+          const avail = H - deck;
+          const gap = narrow ? 30 : 40;
+          // 顶部留给标识、读数与潮汐表，剩下的高度按 48 : 52 分给平面与剖面，各自再封顶
+          // 窄且矮的屏幕收起潮汐表（见样式表），顶部只需留出标识与读数
+          const reserve = narrow ? (H < 700 ? 150 : 270) : 236;
+          const rest = Math.max(avail * 0.5, avail - reserve - gap - 8);
+          L.narrow = narrow;
+          L.sx = W / (field.x1 - field.x0);
+          L.planHeight = Math.min((field.z1 - field.z0) * L.sx, avail * (narrow ? 0.3 : 0.32), rest * 0.48);
+          L.planTop = H - deck - L.planHeight - (narrow ? 4 : 8);
+          L.secBottom = L.planTop - gap;
+          const ground = Math.min(avail * (narrow ? 0.25 : 0.3), rest * 0.52);
+          L.hTop = v.top;
+          L.hBottom = v.bottom;
+          L.sy = ground / (v.top - v.bottom);
+          L.secTop = L.secBottom - ground;
+          const zVisible = L.planHeight / L.sx;
+          L.planZ0 = clamp(field.center - zVisible / 2, field.z0, field.z1 - zVisible);
+          L.planZ1 = L.planZ0 + zVisible;
+          L.horizon = hy(0);
+          state.cut = clamp(state.cut || v.cut, L.planZ0 + 1.5, L.planZ1 - 1.5);
+          buildSection();
+          buildContours();
+          buildStars();
+          placeCutHandle();
+        }
+
+        const sx = (x) => (x - field.x0) * L.sx;
+        const hy = (h) => L.secTop + (L.hTop - h) * L.sy;
+        const zy = (z) => L.planTop + (z - L.planZ0) * L.sx;
+
+        // ═══ 剖面 ═════════════════════════════════════════════════════════
+        // 每两像素一列：剖切线上的地形取自场（与平面同一份高度），
+        // 剖面之后再取一条沿岸更远的轮廓，淡淡画成「看线」，给画面一点纵深。
+        const section = {};
+
+        function buildSection() {
+          const f = field;
+          const step = 2;
+          const m = Math.ceil(W / step) + 1;
+          const prof = new Float32Array(m);
+          const back = new Float32Array(m);
+          const col = new Int32Array(m);
+          const xPh = new Float32Array(m);
+          const sampler = SAMPLERS[f.coast.terrain];
+          for (let k = 0; k < m; k++) {
+            const x = f.x0 + (k * step) / L.sx;
+            prof[k] = fieldHeight(x, state.cut);
+            back[k] = sampler(x, state.cut - 28, f.coast.seed).height;
+            col[k] = clamp(Math.floor((x - f.x0) / f.cell), 0, f.nx - 1);
+            xPh[k] = x / (5.2 * f.coast.swell.period);
+          }
+          Object.assign(section, {
+            m,
+            step,
+            prof,
+            back,
+            col,
+            xPh,
+            row: clamp(Math.floor((state.cut - f.z0) / f.cell), 0, f.nz - 1),
+            zPhase: state.cut * 0.011 + 0.35 * Math.sin(state.cut * 0.021 + 1.3),
+            zNoise: state.cut * 0.035,
+            surf: new Float32Array(m),
+            depth: new Float32Array(m),
+          });
+        }
+
+        /** 离岸涌浪起伏：工程版四个分量，主分量加一点二次谐波让波峰更尖；浅水抬升但不超过水深的 0.45 */
+        function swellHeight(x, z, phase, still, time) {
+          const c = field.coast;
+          const Hs = c.swell.height;
+          const w = (Math.PI * 2) / c.swell.period;
+          const q = -Math.cos(Math.PI * 2 * phase);
+          let h = 0.5 * Hs * (q + 0.28 * (2 * q * q - 1));
+          h += 0.22 * Hs * Math.sin(0.21 * x + 0.09 * z + 1.21 * w * time + 1.7);
+          h += 0.14 * Hs * Math.sin(0.33 * x - 0.16 * z + 1.63 * w * time + 4.1);
+          h += 0.05 * Hs * Math.sin(-0.2 * x + 0.92 * z + 2.9 * w * time);
+          const shoal = clamp(Math.pow(8 / Math.max(still, 0.4), 0.25), 1, 1.7);
+          const cap = 0.45 * Math.max(still, 0);
+          return clamp(h * shoal, -cap, cap);
+        }
+
+        /** 剖面每列的水面：潮位 + 涌浪 + 近岸上冲水膜；是否被淹没与场的规则一致 */
+        function updateSection(level, time) {
+          const s = section;
+          const f = field;
+          const tPhase = time / f.coast.swell.period;
+          const runup = f.coast.swell.runup;
+          for (let k = 0; k < s.m; k++) {
+            const x = f.x0 + (k * s.step) / L.sx;
+            const still = level - s.prof[k];
+            const phase = s.xPh[k] + s.zPhase + tPhase;
+            const lift = still > -runup - 0.02 && still < 1.4 ? swashLift(phase, s.zNoise, runup) * shoreFactor(still) : 0;
+            s.depth[k] = still + lift;
+            s.surf[k] = level + lift + swellHeight(x, state.cut, phase, still, time);
+          }
+        }
+
+        function drawSky(sky) {
+          const g = ctx.createLinearGradient(0, 0, 0, L.horizon);
+          g.addColorStop(0, css(sky.zenith));
+          g.addColorStop(1, css(sky.horizon));
+          ctx.fillStyle = g;
+          ctx.fillRect(0, 0, W, L.secBottom);
+          // 太阳附近的辉光：低空时最浓
+          const sp = skyPoint(sky.sun);
+          if (sky.glowI > 0.01 && sky.sunAlt > -10) {
+            const r = Math.max(W, H) * 0.42;
+            const rg = ctx.createRadialGradient(sp.x, sp.y, 0, sp.x, sp.y, r);
+            rg.addColorStop(0, css(sky.glow, 0.42 * Math.min(1, sky.glowI)));
+            rg.addColorStop(1, css(sky.glow, 0));
+            ctx.fillStyle = rg;
+            ctx.fillRect(0, 0, W, L.secBottom);
+          }
+        }
+
+        // 星空：固定的一把星点，夜色越深越亮
+        let stars = [];
+        function buildStars() {
+          let seed = 9137;
+          const random = () => {
+            seed = (seed * 1664525 + 1013904223) >>> 0;
+            return seed / 4294967296;
+          };
+          stars = Array.from({ length: Math.round((W * L.horizon) / 5200) }, () => ({
+            x: random() * W,
+            y: random() * L.horizon,
+            r: 0.4 + random() * random() * 1.3,
+            a: 0.35 + random() * 0.65,
+            tw: random() * 6.28,
+          }));
+        }
+
+        function drawStars(sky, time) {
+          if (sky.night < 0.02) return;
+          ctx.fillStyle = '#f4f1ea';
+          for (const s of stars) {
+            const tw = reduceMotion ? 1 : 0.75 + 0.25 * Math.sin(time * 1.3 + s.tw);
+            ctx.globalAlpha = sky.night * s.a * tw * (1 - 0.7 * sky.illum * smoothstep(-2, 12, sky.moonAlt));
+            ctx.beginPath();
+            ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          ctx.globalAlpha = 1;
+        }
+
+        /**
+         * 天穹：把地平坐标正投影到剖面所在的竖直面上。
+         * 横向是「朝海方向」的分量（右为海），纵向是高度角；正对岸线的天体落在弧顶附近。
+         */
+        function skyPoint(pos) {
+          const seaAz = field.coast.facing * DEG;
+          const u = Math.cos(pos.alt) * Math.cos(pos.az - seaAz);
+          const rx = W * (L.narrow ? 0.46 : 0.4);
+          const ry = L.horizon - (L.narrow ? 150 : 34);
+          return { x: W / 2 + u * rx, y: L.horizon - Math.sin(pos.alt) * ry, up: pos.alt > -0.01 };
+        }
+
+        /** 一天里日月走过的弧：每二十分钟一个点 */
+        let paths = { key: '', sun: [], moon: [] };
+        function dayPaths(day) {
+          const key = `${field.coast.id}|${day.date}|${W}x${H}`;
+          if (paths.key === key) return paths;
+          const c = field.coast;
+          const sun = [];
+          const moon = [];
+          for (let jd = day.start; jd <= day.end; jd += 1 / 72) {
+            sun.push(skyPoint(sunPosition(jd, c.lat, c.lon)));
+            moon.push(skyPoint(moonPosition(jd, c.lat, c.lon)));
+          }
+          paths = { key, sun, moon };
+          return paths;
+        }
+
+        function drawDome(sky, ink, day) {
+          const rx = W * (L.narrow ? 0.46 : 0.4);
+          const ry = L.horizon - (L.narrow ? 150 : 34);
+          ctx.save();
+          ctx.strokeStyle = css(ink, 0.16);
+          ctx.lineWidth = 1;
+          ctx.setLineDash([2, 6]);
+          ctx.beginPath();
+          ctx.ellipse(W / 2, L.horizon, rx, ry, 0, Math.PI, 0);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          const p = dayPaths(day);
+          // 月相弧：月亮今天走过的路
+          ctx.fillStyle = css(ink, 0.34);
+          p.moon.forEach((pt, i) => {
+            if (!pt.up) return;
+            ctx.beginPath();
+            ctx.arc(pt.x, pt.y, i % 3 === 0 ? 1.3 : 0.7, 0, Math.PI * 2);
+            ctx.fill();
+          });
+          ctx.fillStyle = css(ink, 0.16);
+          p.sun.forEach((pt) => {
+            if (!pt.up) return;
+            ctx.fillRect(pt.x - 0.6, pt.y - 0.6, 1.2, 1.2);
+          });
+          ctx.restore();
+
+          const sp = skyPoint(sky.sun);
+          if (sky.sunAlt > -1.5) {
+            ctx.fillStyle = css(mixRgb([255, 247, 232], sky.glow, 0.4), 0.95);
+            ctx.beginPath();
+            ctx.arc(sp.x, sp.y, L.narrow ? 7 : 9, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          const mp = skyPoint(sky.moon);
+          if (sky.moonAlt > -1.5) drawMoon(mp.x, mp.y, L.narrow ? 8 : 10, sky, ink);
+        }
+
+        /** 月相圆盘：暗面淡描，亮面按月相角画出明暗交界的椭圆 */
+        function drawMoon(x, y, r, sky, ink) {
+          const lit = mixRgb([246, 242, 228], [255, 255, 255], 1 - sky.daylight);
+          ctx.save();
+          ctx.translate(x, y);
+          ctx.strokeStyle = css(ink, 0.3);
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.arc(0, 0, r, 0, Math.PI * 2);
+          ctx.stroke();
+          let a = sky.phase * DEG;
+          // 亏月亮面在左：镜像后按盈月画
+          if (a > Math.PI) {
+            ctx.scale(-1, 1);
+            a = Math.PI * 2 - a;
+          }
+          const tx = r * Math.cos(a);
+          ctx.fillStyle = css(lit, 0.96);
+          ctx.beginPath();
+          ctx.arc(0, 0, r, -Math.PI / 2, Math.PI / 2, false);
+          ctx.ellipse(0, 0, Math.abs(tx), r, 0, Math.PI / 2, -Math.PI / 2, tx > 0);
+          ctx.fill();
+          ctx.restore();
+        }
+
+        // 剖面填充用的纸纹：砂粒与碎贝壳，一次生成反复平铺
+        const grainTile = (() => {
+          const tile = document.createElement('canvas');
+          tile.width = 96;
+          tile.height = 96;
+          const g = tile.getContext('2d');
+          let seed = 4211;
+          const random = () => {
+            seed = (seed * 1664525 + 1013904223) >>> 0;
+            return seed / 4294967296;
+          };
+          for (let i = 0; i < 520; i++) {
+            g.fillStyle = `rgb(60 50 34 / ${0.08 + random() * 0.22})`;
+            const r = 0.3 + random() * random() * 1.1;
+            g.beginPath();
+            g.arc(random() * 96, random() * 96, r, 0, Math.PI * 2);
+            g.fill();
+          }
+          for (let i = 0; i < 14; i++) {
+            g.strokeStyle = `rgb(255 250 238 / ${0.35 + random() * 0.3})`;
+            g.lineWidth = 0.8;
+            g.beginPath();
+            const x = random() * 96;
+            const y = random() * 96;
+            g.arc(x, y, 1 + random() * 1.6, Math.PI * (0.9 + random() * 0.2), Math.PI * 2.1);
+            g.stroke();
+          }
+          return tile;
+        })();
+        let grainPattern = null;
+
+        function sectionPath(values, from = 0, to = section.m - 1) {
+          const s = section;
+          ctx.moveTo(from * s.step, hy(values[from]));
+          for (let k = from + 1; k <= to; k++) ctx.lineTo(k * s.step, hy(values[k]));
+        }
+
+        function drawSection(sky, ink, time) {
+          const s = section;
+          const f = field;
+          const lit = sky.light;
+          const shade = (c, k = 1) => [c[0] * lit[0] * k, c[1] * lit[1] * k, c[2] * lit[2] * k];
+          const right = (s.m - 1) * s.step;
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(0, 0, W, L.secBottom);
+          ctx.clip();
+
+          // 剖面之后的看线：淡一层纸色剪影
+          ctx.beginPath();
+          sectionPath(s.back);
+          ctx.lineTo(right, L.secBottom);
+          ctx.lineTo(0, L.secBottom);
+          ctx.closePath();
+          ctx.fillStyle = css(mixRgb(sky.horizon, shade(SAND.dry, 0.92), 0.42));
+          ctx.fill();
+
+          // 剖切面：沙的断面加砂粒纹理与几道沉积层理
+          ctx.save();
+          ctx.beginPath();
+          sectionPath(s.prof);
+          ctx.lineTo(right, L.secBottom + 2);
+          ctx.lineTo(0, L.secBottom + 2);
+          ctx.closePath();
+          ctx.fillStyle = css(shade(f.coast.terrain === 'mudflat' ? [182, 166, 134] : f.coast.terrain === 'rocky' ? [190, 180, 160] : [218, 202, 166]));
+          ctx.fill();
+          ctx.clip();
+          if (!grainPattern) grainPattern = ctx.createPattern(grainTile, 'repeat');
+          ctx.globalAlpha = 0.55 * (0.4 + 0.6 * lit[0]);
+          ctx.fillStyle = grainPattern;
+          ctx.fillRect(0, L.secTop - 200, W, L.secBottom - L.secTop + 220);
+          ctx.globalAlpha = 1;
+          ctx.strokeStyle = css(shade([120, 100, 70]), 0.22);
+          ctx.lineWidth = 1;
+          for (const [depthM, flat] of [[0.45, 0.25], [1.1, 0.4], [1.9, 0.55], [2.9, 0.7], [4.1, 0.8]]) {
+            ctx.beginPath();
+            for (let k = 0; k < s.m; k += 2) {
+              const h = mix(s.prof[k] - depthM, -depthM * 0.9 + 0.6, flat);
+              const y = hy(h);
+              if (k === 0) ctx.moveTo(0, y);
+              else ctx.lineTo(k * s.step, y);
+            }
+            ctx.stroke();
+          }
+          ctx.restore();
+
+          // 地表：干湿两种颜色的「表皮」，湿的部分按场里那一行的湿度分档叠上去
+          const row = s.row * f.nx;
+          ctx.lineCap = 'round';
+          ctx.lineWidth = L.narrow ? 2.4 : 3.2;
+          ctx.strokeStyle = css(shade(SAND.dry, 0.96));
+          ctx.beginPath();
+          sectionPath(s.prof);
+          ctx.stroke();
+          for (const [lo, hi] of [[0.08, 0.35], [0.35, 0.7], [0.7, 1.01]]) {
+            ctx.beginPath();
+            let open = false;
+            for (let k = 0; k < s.m - 1; k++) {
+              const w = f.wet[row + s.col[k]];
+              if (w >= lo && w < hi) {
+                if (!open) ctx.moveTo(k * s.step, hy(s.prof[k]));
+                ctx.lineTo((k + 1) * s.step, hy(s.prof[k + 1]));
+                open = true;
+              } else open = false;
+            }
+            ctx.strokeStyle = css(shade(SAND.wet), (lo + hi) / 2);
+            ctx.stroke();
+          }
+
+          // 水体：每一段连续被淹没的列画成一块，表面到地表之间填水色
+          const day = sky.daylight;
+          const deep = mixRgb(linearToSrgb(f.coast.water.deep), PAPER, 0.12 * day);
+          const shallow = linearToSrgb(f.coast.water.shallow);
+          const top = mixRgb(shallow, PAPER, 0.18 * day);
+          const g = ctx.createLinearGradient(0, hy(state.level + 0.4), 0, L.secBottom);
+          g.addColorStop(0, css(shade(top), 0.78));
+          g.addColorStop(0.35, css(shade(mixRgb(top, deep, 0.55)), 0.88));
+          g.addColorStop(1, css(shade(deep), 0.95));
+          ctx.fillStyle = g;
+          ctx.strokeStyle = css(mixRgb(shade(deep, 0.8), ink, 0.25), 0.9);
+          ctx.lineWidth = 1.2;
+          let k = 0;
+          while (k < s.m) {
+            if (s.depth[k] <= 0) {
+              k++;
+              continue;
+            }
+            const start = k;
+            while (k < s.m && s.depth[k] > 0) k++;
+            const end = k - 1;
+            ctx.beginPath();
+            ctx.moveTo(start * s.step, hy(Math.max(s.surf[start], s.prof[start])));
+            for (let q = start + 1; q <= end; q++) ctx.lineTo(q * s.step, hy(Math.max(s.surf[q], s.prof[q])));
+            for (let q = end; q >= start; q--) ctx.lineTo(q * s.step, hy(s.prof[q]));
+            ctx.closePath();
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(start * s.step, hy(Math.max(s.surf[start], s.prof[start])));
+            for (let q = start + 1; q <= end; q++) ctx.lineTo(q * s.step, hy(Math.max(s.surf[q], s.prof[q])));
+            ctx.stroke();
+          }
+
+          // 泡沫：上冲前缘与退水后残留的花边，外加沙坝上碎浪的浪花
+          const foamColor = css(shade([252, 250, 244], 1.02), 0.92);
+          ctx.fillStyle = foamColor;
+          const flicker = Math.floor(time * 9);
+          for (let q = 1; q < s.m - 1; q++) {
+            const d = s.depth[q];
+            const front = d > 0 && d < 0.06 && s.depth[q - 1] <= 0.06;
+            const residue = d <= 0 ? f.foam[row + s.col[q]] : 0;
+            const crest = d > 0 && state.level - s.prof[q] > 0.3 ? breaker(q, d) : 0;
+            const amount = Math.max(front ? 1 : 0, residue, crest);
+            if (amount < 0.18) continue;
+            const y = hy(Math.max(s.surf[q], s.prof[q]));
+            const n = amount > 0.6 ? 3 : 1;
+            for (let b = 0; b < n; b++) {
+              const h = hash2(q, flicker + b * 31, 7);
+              ctx.beginPath();
+              ctx.arc(q * s.step + (h - 0.5) * 4, y - hash2(q, flicker + b, 9) * 3 * amount, 0.6 + h * 1.4 * amount, 0, Math.PI * 2);
+              ctx.fill();
+            }
+          }
+
+          // 剖面线：墨线描边
+          ctx.strokeStyle = css(ink, 0.82);
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          sectionPath(s.prof);
+          ctx.stroke();
+
+          // 底边淡出到纸
+          const fade = ctx.createLinearGradient(0, L.secBottom - 26, 0, L.secBottom + 1);
+          fade.addColorStop(0, css(paperNow(), 0));
+          fade.addColorStop(1, css(paperNow(), 1));
+          ctx.fillStyle = fade;
+          ctx.fillRect(0, L.secBottom - 26, W, 28);
+          ctx.restore();
+        }
+
+        /** 碎浪：浅处波峰陡到一定程度就翻出白沫 */
+        function breaker(q, depth) {
+          const s = section;
+          const c = field.coast;
+          const ratio = c.swell.height / Math.max(depth, 0.1);
+          if (ratio < 0.28) return 0;
+          const crest = (s.surf[q] - state.level) / Math.max(c.swell.height * 0.5, 0.001);
+          return smoothstep(0.28, 0.5, ratio) * smoothstep(0.35, 0.95, crest) * smoothstep(0.15, 0.45, c.swell.height);
+        }
+
+        const linearToSrgb = (c) => c.map((v) => 255 * (v <= 0.0031308 ? 12.92 * v : 1.055 * Math.pow(v, 1 / 2.4) - 0.055));
+
+        /** 参考线、水尺与图注 */
+        function drawSectionNotes(ink, day) {
+          const c = field.coast;
+          const env = tideEnvelope(c);
+          const datum = chartDatum(c);
+          ctx.save();
+          ctx.font = `10.5px ${fontData}`;
+          ctx.textBaseline = 'middle';
+          // 平均海面与理论最高 / 最低潮面
+          ctx.setLineDash([2, 5]);
+          ctx.strokeStyle = css(ink, 0.32);
+          ctx.lineWidth = 1;
+          for (const [h, label] of [[0, '平均海面'], [env.max, '最高潮面'], [env.min, '最低潮面']]) {
+            const y = Math.round(hy(h)) + 0.5;
+            ctx.globalAlpha = h === 0 ? 1 : 0.6;
+            ctx.beginPath();
+            ctx.moveTo(L.narrow ? 0 : 12, y);
+            ctx.lineTo(W - (L.narrow ? 52 : 74), y);
+            ctx.stroke();
+            ctx.fillStyle = css(ink, 0.5);
+            ctx.textAlign = 'right';
+            ctx.fillText(`${label} ${(h - datum).toFixed(1)}`, W - (L.narrow ? 60 : 80), y - 7);
+          }
+          ctx.globalAlpha = 1;
+          ctx.setLineDash([]);
+
+          // 当天的高低潮位：短刻线
+          for (const e of day.extrema) {
+            const y = Math.round(hy(e.height)) + 0.5;
+            ctx.strokeStyle = css(ink, 0.5);
+            ctx.beginPath();
+            ctx.moveTo(W - (L.narrow ? 40 : 66), y);
+            ctx.lineTo(W - (L.narrow ? 34 : 56), y);
+            ctx.stroke();
+          }
+
+          // 水尺：E 字刻度，从海图基准面起算，立在剖面右缘的海里
+          const top = Math.ceil(env.max - datum + 0.3);
+          const x = W - (L.narrow ? 26 : 44);
+          const y0 = hy(datum);
+          const y1 = hy(datum + top);
+          ctx.strokeStyle = css(ink, 0.7);
+          ctx.fillStyle = css(ink, 0.7);
+          ctx.beginPath();
+          ctx.moveTo(x + 0.5, y1);
+          ctx.lineTo(x + 0.5, y0);
+          ctx.stroke();
+          for (let d = 0; d < top * 10; d++) {
+            const ya = hy(datum + (d + 1) / 10);
+            const yb = hy(datum + d / 10);
+            const meter = d % 10 === 9;
+            const width = meter ? 12 : d % 5 === 4 ? 9 : 6;
+            ctx.globalAlpha = datum + d / 10 < state.level ? 0.45 : 1;
+            ctx.fillRect(x, ya, width, Math.max(1, (yb - ya) / 2));
+          }
+          ctx.globalAlpha = 1;
+          ctx.textAlign = 'right';
+          ctx.fillStyle = css(ink, 0.5);
+          for (let mtr = 0; mtr <= top; mtr++) ctx.fillText(String(mtr), x - 5, hy(datum + mtr));
+          const yl = hy(state.level);
+          ctx.strokeStyle = css(ink, 1);
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.moveTo(x - 4, yl);
+          ctx.lineTo(x + 16, yl);
+          ctx.stroke();
+
+          // 图注：剖面名与垂直放大倍数
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'alphabetic';
+          ctx.fillStyle = css(ink, 0.62);
+          ctx.font = `12px ${fontSerif}`;
+          const ex = L.sy / L.sx;
+          ctx.fillText('剖面 A—A', 12, L.secBottom - 10);
+          ctx.fillStyle = css(ink, 0.42);
+          ctx.font = `10.5px ${fontData}`;
+          ctx.fillText(`垂直放大 ×${ex.toFixed(1)}`, 78, L.secBottom - 10);
+          ctx.restore();
+        }
+
+        // ═══ 平面 ═════════════════════════════════════════════════════════
+        /** 平面着色：干湿沙、痕迹的浮雕、按水深透出的水色、波峰线与泡沫花边 */
+        function shadePlan(sky, time) {
+          const f = field;
+          const { nx, nz, dry, wetC, wet, trace, foam, depth, lace, xPhase, zPhase } = f;
+          const px = f.image.data;
+          const lit = sky.light;
+          const day = sky.daylight;
+          const deep = mixRgb(linearToSrgb(f.coast.water.deep), PAPER, 0.16 * day);
+          const shallow = mixRgb(linearToSrgb(f.coast.water.shallow), PAPER, 0.12 * day);
+          const turb = 0.9 + f.coast.water.turbidity * 0.8;
+          // 波峰线与泡沫随涌浪大小增减：泥滩与内海的小浪只留淡淡的痕迹
+          const swellScale = smoothstep(0.1, 0.5, f.coast.swell.height);
+          const crestGain = 26 * swellScale;
+          const foamGain = 0.55 + 0.45 * swellScale;
+          // 湿沙反一点天光
+          const skyTint = sky.horizon;
+          const tPhase = time / f.coast.swell.period;
+          const lr = lit[0];
+          const lg = lit[1];
+          const lb = lit[2];
+          for (let j = 0; j < nz; j++) {
+            const zp = zPhase[j] + tPhase;
+            const edgeRow = j === 0 || j === nz - 1;
+            let k = j * nx;
+            for (let i = 0; i < nx; i++, k++) {
+              const w = wet[k];
+              const k3 = k * 3;
+              let r = dry[k3] + (wetC[k3] - dry[k3]) * w;
+              let g = dry[k3 + 1] + (wetC[k3 + 1] - dry[k3 + 1]) * w;
+              let b = dry[k3 + 2] + (wetC[k3 + 2] - dry[k3 + 2]) * w;
+              if (w > 0.05) {
+                const t = w * 0.12;
+                r += (skyTint[0] - r) * t;
+                g += (skyTint[1] - g) * t;
+                b += (skyTint[2] - b) * t;
+              }
+              const tr = trace[k];
+              if (tr > 0.004 && !edgeRow && i > 0 && i < nx - 1) {
+                // 沟槽：迎光的一壁亮、背光的一壁暗，沟底露出更湿更深的沙
+                const e = trace[k - 1 - nx] - trace[k + 1 + nx];
+                const s = e * 92 - tr * 30;
+                r += s;
+                g += s;
+                b += s * 0.94;
+              }
+              const d = depth[k];
+              if (d > 0) {
+                const a = Math.min(0.95, 1 - Math.exp(-d * turb));
+                const m = 1 - Math.exp(-d * 0.5);
+                let wr = shallow[0] + (deep[0] - shallow[0]) * m;
+                let wg = shallow[1] + (deep[1] - shallow[1]) * m;
+                let wb = shallow[2] + (deep[2] - shallow[2]) * m;
+                if (d > 0.15 && crestGain > 1) {
+                  // 涌浪波峰线：一条条向岸推进的亮线
+                  const ph = xPhase[i] + zp;
+                  const fr = ph - Math.floor(ph);
+                  const crest = fr < 0.1 ? (1 - fr / 0.1) * Math.min(1, (d - 0.15) * 1.5) * crestGain : 0;
+                  wr += crest;
+                  wg += crest;
+                  wb += crest;
+                }
+                r += (wr - r) * a;
+                g += (wg - g) * a;
+                b += (wb - b) * a;
+              }
+              const fo = foam[k];
+              if (fo > 0.03) {
+                const amount = fo * lace[k] * foamGain;
+                r += (252 - r) * amount;
+                g += (250 - g) * amount;
+                b += (244 - b) * amount;
+              }
+              const p = k * 4;
+              px[p] = r * lr;
+              px[p + 1] = g * lg;
+              px[p + 2] = b * lb;
+              px[p + 3] = 255;
+            }
+          }
+        }
+
+        // 等高线：每 0.5 米一条（平均海面加粗），按显示尺寸缓存成路径，每帧只描边
+        let contours = [];
+        function buildContours() {
+          const f = field;
+          const s = 2;
+          const cols = Math.floor((f.nx - 1) / s);
+          const rows = Math.floor((f.nz - 1) / s);
+          let lo = Infinity;
+          let hi = -Infinity;
+          for (let k = 0; k < f.n; k++) {
+            if (f.H[k] < lo) lo = f.H[k];
+            if (f.H[k] > hi) hi = f.H[k];
+          }
+          const toX = (i) => ((i + 0.5) * f.cell) * L.sx;
+          const toY = (j) => zy(f.z0 + (j + 0.5) * f.cell);
+          contours = [];
+          for (let level = Math.ceil(lo * 2) / 2; level <= hi; level += 0.5) {
+            const path = new Path2D();
+            for (let r = 0; r < rows; r++) {
+              for (let q = 0; q < cols; q++) {
+                const i = q * s;
+                const j = r * s;
+                const a = f.H[j * f.nx + i] - level;
+                const b = f.H[j * f.nx + i + s] - level;
+                const c = f.H[(j + s) * f.nx + i + s] - level;
+                const d = f.H[(j + s) * f.nx + i] - level;
+                const code = (a > 0 ? 8 : 0) | (b > 0 ? 4 : 0) | (c > 0 ? 2 : 0) | (d > 0 ? 1 : 0);
+                if (code === 0 || code === 15) continue;
+                // 四条边上的交点（插值）
+                const top = [toX(i + (s * a) / (a - b)), toY(j)];
+                const rgt = [toX(i + s), toY(j + (s * b) / (b - c))];
+                const bot = [toX(i + (s * d) / (d - c)), toY(j + s)];
+                const lft = [toX(i), toY(j + (s * a) / (a - d))];
+                const seg = (p, qq) => {
+                  path.moveTo(p[0], p[1]);
+                  path.lineTo(qq[0], qq[1]);
+                };
+                switch (code) {
+                  case 1: case 14: seg(lft, bot); break;
+                  case 2: case 13: seg(bot, rgt); break;
+                  case 3: case 12: seg(lft, rgt); break;
+                  case 4: case 11: seg(top, rgt); break;
+                  case 5: seg(lft, top); seg(bot, rgt); break;
+                  case 6: case 9: seg(top, bot); break;
+                  case 7: case 8: seg(lft, top); break;
+                  case 10: seg(lft, bot); seg(top, rgt); break;
+                }
+              }
+            }
+            contours.push({ level, path });
+          }
+        }
+
+        function drawPlan(ink) {
+          const f = field;
+          planContext.putImageData(f.image, 0, 0);
+          const srcY = (L.planZ0 - f.z0) / f.cell;
+          const srcH = (L.planZ1 - L.planZ0) / f.cell;
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(planBuffer, 0, srcY, f.nx, srcH, 0, L.planTop, W, L.planHeight);
+
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(0, L.planTop, W, L.planHeight);
+          ctx.clip();
+          ctx.lineWidth = 0.8;
+          for (const c of contours) {
+            ctx.strokeStyle = css(ink, c.level === 0 ? 0.3 : Number.isInteger(c.level) ? 0.17 : 0.09);
+            ctx.stroke(c.path);
+          }
+
+          // 剖切线 A—A：点划线
+          const y = Math.round(zy(state.cut)) + 0.5;
+          ctx.strokeStyle = css(ink, 0.7);
+          ctx.lineWidth = 1;
+          ctx.setLineDash([14, 4, 2, 4]);
+          ctx.beginPath();
+          ctx.moveTo(30, y);
+          ctx.lineTo(W - 30, y);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.restore();
+
+          ctx.save();
+          ctx.fillStyle = css(ink, 0.9);
+          ctx.font = `600 11px ${fontData}`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.beginPath();
+          ctx.moveTo(W - 22, y - 5);
+          ctx.lineTo(W - 22, y + 5);
+          ctx.lineTo(W - 14, y);
+          ctx.closePath();
+          ctx.fill();
+          ctx.fillText('A', W - 26, y - 12);
+
+          // 平面框与图注
+          ctx.strokeStyle = css(ink, 0.5);
+          ctx.lineWidth = 1;
+          ctx.strokeRect(0.5, Math.round(L.planTop) + 0.5, W - 1, Math.round(L.planHeight) - 1);
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'alphabetic';
+          ctx.fillStyle = css(ink, 0.62);
+          ctx.font = `12px ${fontSerif}`;
+          ctx.fillText('平面', 12, L.planTop - 9);
+          drawScaleBar(ink, 52, L.planTop - 12);
+          drawNorth(ink, W - (L.narrow ? 22 : 34), L.planTop - (L.narrow ? 16 : 18));
+          ctx.restore();
+        }
+
+        /** 比例尺：取一个整齐的长度，约占百余像素 */
+        function drawScaleBar(ink, x, y) {
+          const target = (L.narrow ? 70 : 120) / L.sx;
+          const nice = [5, 10, 20, 25, 50, 100].find((v) => v >= target * 0.7) ?? 100;
+          const w = nice * L.sx;
+          ctx.strokeStyle = css(ink, 0.6);
+          ctx.fillStyle = css(ink, 0.6);
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(x, y - 3);
+          ctx.lineTo(x, y + 1);
+          ctx.lineTo(x + w, y + 1);
+          ctx.lineTo(x + w, y - 3);
+          ctx.moveTo(x + w / 2, y + 1);
+          ctx.lineTo(x + w / 2, y - 2);
+          ctx.stroke();
+          ctx.fillRect(x, y - 1, w / 2, 2);
+          ctx.font = `10.5px ${fontData}`;
+          ctx.fillStyle = css(ink, 0.45);
+          ctx.fillText(`${nice} 米`, x + w + 8, y + 3);
+        }
+
+        /** 指北针：平面里 +x 指向海岸的朝向方位角，北方由此转出 */
+        function drawNorth(ink, x, y) {
+          const a = -field.coast.facing * DEG;
+          const dx = Math.cos(a);
+          const dy = Math.sin(a);
+          ctx.strokeStyle = css(ink, 0.6);
+          ctx.fillStyle = css(ink, 0.7);
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(x - dx * 9, y - dy * 9);
+          ctx.lineTo(x + dx * 9, y + dy * 9);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(x + dx * 10, y + dy * 10);
+          ctx.lineTo(x + dx * 4 - dy * 3.5, y + dy * 4 + dx * 3.5);
+          ctx.lineTo(x + dx * 4 + dy * 3.5, y + dy * 4 - dx * 3.5);
+          ctx.closePath();
+          ctx.fill();
+          ctx.font = `600 10px ${fontData}`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('N', x + dx * 17, y + dy * 17);
+        }
+
+        /** 水边线投影：剖面里水与沙的交点，竖直落到平面的剖切线上 */
+        function drawProjection(ink) {
+          const xs = shorelineX(state.level, state.cut);
+          if (xs <= field.x0 || xs >= field.x1) return;
+          const x = Math.round(sx(xs)) + 0.5;
+          ctx.save();
+          ctx.strokeStyle = css(ink, 0.4);
+          ctx.lineWidth = 1;
+          ctx.setLineDash([1.5, 3.5]);
+          ctx.beginPath();
+          ctx.moveTo(x, hy(state.level) + 4);
+          ctx.lineTo(x, zy(state.cut) - 4);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.fillStyle = css(ink, 0.55);
+          ctx.font = `10.5px ${fontSerif}`;
+          const flip = x > W - 96;
+          ctx.textAlign = flip ? 'right' : 'left';
+          ctx.fillText('水边线', flip ? x - 5 : x + 5, L.planTop - 9);
+          ctx.restore();
+        }
+
+        /** 写字模式下，跟着指针预览字落下的位置与大小 */
+        function drawGhost(ink) {
+          if (state.tool !== 'text' || !hover || !textInput.value.trim()) return;
+          ctx.save();
+          ctx.fillStyle = css(ink, 0.35);
+          ctx.font = `600 ${Math.round(textHeight() * L.sx)}px ${fontSerif}`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(textInput.value.trim(), hover.cx, hover.cy);
+          ctx.restore();
+        }
+
+        // ═══ 潮汐表 ═══════════════════════════════════════════════════════
+        const tablePlot = document.getElementById('table-plot');
+        let day = null;
+
+        function renderTable() {
+          const c = coast();
+          const env = tideEnvelope(c);
+          const datum = chartDatum(c);
+          // 上方留白给高潮标注，下方留白给低潮标注
+          const toY = (h) => (0.78 - ((h - env.min) / (env.max - env.min)) * 0.46) * 100;
+          const line = day.curve.map(([x, h], i) => `${i ? 'L' : 'M'}${(x * 1000).toFixed(1)},${toY(h).toFixed(2)}`).join('');
+          document.getElementById('table-line').setAttribute('d', line);
+          document.getElementById('table-area').setAttribute('d', `${line}L1000,100L0,100Z`);
+          const msl = document.getElementById('table-msl');
+          msl.setAttribute('y1', toY(0));
+          msl.setAttribute('y2', toY(0));
+          document.getElementById('table-day').style.backgroundImage = day.gradient;
+          const marks = document.getElementById('table-marks');
+          marks.replaceChildren(
+            ...day.extrema.map((e) => {
+              const el = document.createElement('span');
+              el.className = `table__mark table__mark--${e.kind}`;
+              el.style.left = `${e.p * 100}%`;
+              el.style.top = `${toY(e.height)}%`;
+              const height = `${(e.height - datum).toFixed(1)} m`;
+              el.innerHTML = e.kind === 'high' ? `<b>${e.clock}</b><i>${height}</i>` : `<b>${e.clock}<i>${height}</i></b>`;
+              return el;
+            }),
+          );
+        }
+
+        function seekTable(clientX) {
+          const rect = tablePlot.getBoundingClientRect();
+          setTime(day.start + (day.end - day.start) * clamp((clientX - rect.left) / rect.width, 0, 1));
+        }
+
+        tablePlot.addEventListener('pointerdown', (e) => {
+          tablePlot.setPointerCapture(e.pointerId);
+          seekTable(e.clientX);
+        });
+        tablePlot.addEventListener('pointermove', (e) => {
+          if (tablePlot.hasPointerCapture(e.pointerId)) seekTable(e.clientX);
+        });
+        tablePlot.addEventListener('keydown', (e) => {
+          const step = (e.shiftKey ? 60 : 10) / 1440;
+          const map = { ArrowLeft: state.jd - step, ArrowRight: state.jd + step, Home: day.start, End: day.end - 1 / 1440 };
+          if (!(e.key in map)) return;
+          e.preventDefault();
+          setTime(map[e.key]);
+        });
+
+        // ═══ 音景（与工程版 audio/Surf.ts 同一套三层合成） ═══════════════
+        // 涌浪的「沙——」与回落的砾石声、40–120 Hz 的底层涌声、浪退时泡沫破裂的细碎声，
+        // 全部由噪声与滤波合成，不需要任何音频素材。首次点击声音按钮后才创建 AudioContext。
+        const surf = {
+          ctx: null,
+          master: null,
+          lowGain: null,
+          white: null,
+          lastWave: -1,
+          fizzBudget: 0,
+          enabled: false,
+        };
+
+        function buildAudio() {
+          const Ctx = window.AudioContext || window.webkitAudioContext;
+          const a = new Ctx();
+          surf.ctx = a;
+          surf.master = a.createGain();
+          surf.master.gain.value = 0;
+          surf.master.connect(a.destination);
+          const white = a.createBuffer(1, a.sampleRate * 4, a.sampleRate);
+          const w = white.getChannelData(0);
+          for (let i = 0; i < w.length; i++) w[i] = Math.random() * 2 - 1;
+          surf.white = white;
+          const brown = a.createBuffer(1, a.sampleRate * 4, a.sampleRate);
+          const b = brown.getChannelData(0);
+          let last = 0;
+          for (let i = 0; i < b.length; i++) {
+            last = (last + 0.02 * (Math.random() * 2 - 1)) / 1.02;
+            b[i] = last * 3.2;
+          }
+          const low = a.createBufferSource();
+          low.buffer = brown;
+          low.loop = true;
+          const lowpass = a.createBiquadFilter();
+          lowpass.type = 'lowpass';
+          lowpass.frequency.value = 110;
+          surf.lowGain = a.createGain();
+          surf.lowGain.gain.value = 0.2;
+          low.connect(lowpass).connect(surf.lowGain).connect(surf.master);
+          low.start();
+        }
+
+        async function setSound(on) {
+          surf.enabled = on;
+          if (on && !surf.ctx) buildAudio();
+          if (!surf.ctx) return false;
+          if (on) await surf.ctx.resume();
+          surf.master.gain.setTargetAtTime(on ? 0.9 : 0, surf.ctx.currentTime, 0.4);
+          return on;
+        }
+
+        /** 一道浪：上涌的「沙——」与回落时的砾石声 */
+        function surfWave(loud) {
+          const a = surf.ctx;
+          const now = a.currentTime;
+          const src = a.createBufferSource();
+          src.buffer = surf.white;
+          src.playbackRate.value = 0.9 + Math.random() * 0.2;
+          const band = a.createBiquadFilter();
+          band.type = 'bandpass';
+          band.frequency.setValueAtTime(420, now);
+          band.frequency.linearRampToValueAtTime(900 + Math.random() * 300, now + 0.9);
+          band.frequency.exponentialRampToValueAtTime(380, now + 4.5);
+          band.Q.value = 0.55;
+          const gain = a.createGain();
+          gain.gain.setValueAtTime(0.0001, now);
+          gain.gain.exponentialRampToValueAtTime(0.5 * loud, now + 0.7);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + 5.2);
+          src.connect(band).connect(gain).connect(surf.master);
+          src.start(now, Math.random() * 2);
+          src.stop(now + 5.4);
+          const back = a.createBufferSource();
+          back.buffer = surf.white;
+          const high = a.createBiquadFilter();
+          high.type = 'highpass';
+          high.frequency.value = 3200;
+          const backGain = a.createGain();
+          backGain.gain.setValueAtTime(0.0001, now + 1.6);
+          backGain.gain.exponentialRampToValueAtTime(0.08 * loud, now + 2.4);
+          backGain.gain.exponentialRampToValueAtTime(0.0001, now + 4.6);
+          back.connect(high).connect(backGain).connect(surf.master);
+          back.start(now + 1.6, Math.random() * 2);
+          back.stop(now + 4.8);
+          surf.fizzBudget = 40 * loud;
+        }
+
+        /** 泡沫破裂：极短的高频脉冲 */
+        function surfFizz(loud) {
+          const a = surf.ctx;
+          const now = a.currentTime;
+          const src = a.createBufferSource();
+          src.buffer = surf.white;
+          const high = a.createBiquadFilter();
+          high.type = 'highpass';
+          high.frequency.value = 5000 + Math.random() * 4000;
+          const gain = a.createGain();
+          const dur = 0.012 + Math.random() * 0.03;
+          gain.gain.setValueAtTime(0.05 * loud * Math.random(), now);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+          src.connect(high).connect(gain).connect(surf.master);
+          src.start(now, Math.random() * 3);
+          src.stop(now + dur + 0.01);
+        }
+
+        /** 每帧：剖切线上水边那一点的涌浪相位每过一个整数就是一道新浪 */
+        function updateAudio(dt) {
+          if (!surf.enabled || !surf.ctx) return;
+          const c = field.coast;
+          const shore = shorelineX(state.level, state.cut);
+          const phase = shore / (5.2 * c.swell.period) + state.time / c.swell.period + section.zPhase;
+          const env = tideEnvelope(c);
+          // 没有镜头远近，固定当作站在离水边不远处
+          const proximity = 0.8;
+          const loud = Math.min(1.2, 0.25 + proximity * 0.9) * Math.min(1.4, 0.5 + c.swell.height * 1.4);
+          const index = Math.floor(phase);
+          if (surf.lastWave >= 0 && index !== surf.lastWave) surfWave(loud);
+          surf.lastWave = index;
+          const tideNorm = (state.level - env.min) / (env.max - env.min);
+          surf.lowGain.gain.setTargetAtTime(0.08 + 0.3 * tideNorm * (0.4 + proximity * 0.6), surf.ctx.currentTime, 1.5);
+          if (surf.fizzBudget > 0) {
+            if (Math.random() < 0.35 * Math.min(1, surf.fizzBudget / 40)) surfFizz(loud);
+            surf.fizzBudget = Math.max(0, surf.fizzBudget - dt * 18);
+          }
+        }
+
+        // ═══ 界面 ═════════════════════════════════════════════════════════
+        const $ = (id) => document.getElementById(id);
+        const textInput = $('text');
+        const toastEl = $('toast');
+        const cutHandle = $('cut');
+        const fontData = getComputedStyle(document.documentElement).getPropertyValue('--data');
+        const fontSerif = getComputedStyle(document.documentElement).getPropertyValue('--serif');
+        let toastTimer = 0;
+
+        function toast(message, duration = 3400) {
+          clearTimeout(toastTimer);
+          toastEl.textContent = message;
+          toastEl.dataset.visible = 'true';
+          toastTimer = setTimeout(() => (toastEl.dataset.visible = 'false'), duration);
+        }
+
+        const coastTabs = $('coasts');
+        COASTS.forEach((c, i) => {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.setAttribute('role', 'radio');
+          b.title = c.description;
+          b.textContent = c.name;
+          b.addEventListener('click', () => setCoast(i));
+          coastTabs.append(b);
+        });
+
+        function syncControls() {
+          [...coastTabs.children].forEach((b, i) => b.setAttribute('aria-checked', String(i === state.coastIndex)));
+          [...$('speeds').children].forEach((b) => b.setAttribute('aria-checked', String(Number(b.dataset.speed) === state.speed)));
+          [...$('tools').children].forEach((b) => b.setAttribute('aria-checked', String(b.dataset.tool === state.tool)));
+          textInput.hidden = state.tool !== 'text';
+          $('play').setAttribute('aria-label', state.playing ? '暂停潮汐' : '继续潮汐');
+          $('play-icon').setAttribute('d', state.playing ? 'M7.5 5v10M12.5 5v10' : 'M7 4.8v10.4l8.5-5.2z');
+          $('play-icon').parentElement.classList.toggle('icon--fill', !state.playing);
+        }
+
+        function setCoast(index) {
+          if (index === state.coastIndex && field.coast) return;
+          state.coastIndex = index;
+          // 换海岸时保持当地的钟面时间
+          const keep = field.coast ? localParts(state.jd, field.coast.tz) : null;
+          if (keep) state.jd = localMidnightJd(keep.date, coast().tz) + keep.hours / 24;
+          state.cut = 0;
+          buildField(coast());
+          layout();
+          state.level = levelAt(state.jd);
+          walkFootprints();
+          state.needsWarmup = true;
+          day = null;
+          syncControls();
+          if (!state.playing) writeUrl();
+        }
+
+        function setTime(jd) {
+          const jump = Math.abs(jd - state.jd) > 1 / 24;
+          state.jd = jd;
+          if (jump) state.needsWarmup = true;
+          emit(true);
+          if (!state.playing) writeUrl();
+        }
+
+        const writeUrl = () => window.history.replaceState(null, '', buildUrl());
+
+        $('play').addEventListener('click', togglePlay);
+        function togglePlay() {
+          state.playing = !state.playing;
+          syncControls();
+          if (!state.playing) writeUrl();
+        }
+
+        $('speeds').addEventListener('click', (e) => {
+          const b = e.target.closest('button');
+          if (!b) return;
+          state.speed = Number(b.dataset.speed);
+          syncControls();
+        });
+
+        $('now').addEventListener('click', () => setTime(jdFromMs(Date.now())));
+
+        $('tools').addEventListener('click', (e) => {
+          const b = e.target.closest('button');
+          if (!b) return;
+          state.tool = b.dataset.tool;
+          syncControls();
+          if (state.tool === 'text') {
+            textInput.focus();
+            toast('先写好字，再点一下平面里的沙滩');
+          } else toast('在平面里拖动，就能在沙上划出痕迹');
+        });
+
+        $('erase').addEventListener('click', () => {
+          field.trace.fill(0);
+          toast('沙面抹平了');
+        });
+
+        $('sound').addEventListener('click', async () => {
+          const on = await setSound(!surf.enabled);
+          $('sound').setAttribute('aria-pressed', String(on));
+          $('sound').setAttribute('aria-label', on ? '关闭海浪声' : '打开海浪声');
+        });
+
+        $('share').addEventListener('click', async () => {
+          const url = new URL(buildUrl(), window.location.href).toString();
+          try {
+            await navigator.clipboard.writeText(url);
+            toast('链接已复制，打开就是此刻的这片海');
+          } catch {
+            toast('无法写入剪贴板，请直接复制地址栏');
+          }
+        });
+
+        $('date').addEventListener('change', (e) => {
+          const value = e.target.value;
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return;
+          const hours = localParts(state.jd, coast().tz).hours;
+          setTime(localMidnightJd(value, coast().tz) + hours / 24);
+        });
+
+        window.addEventListener('keydown', (e) => {
+          if (e.code !== 'Space') return;
+          const target = e.target;
+          if (target && /^(INPUT|BUTTON|SELECT|TEXTAREA)$/.test(target.tagName)) return;
+          if (target?.getAttribute?.('role') === 'slider') return;
+          e.preventDefault();
+          togglePlay();
+        });
+
+        // 在平面上书写：拖动划线，写字模式点一下压字
+        let drawing = null;
+        let hover = null;
+        const textHeight = () => (L.narrow ? 26 : 32) / L.sx;
+        const penRadius = () => Math.max((L.narrow ? 1.4 : 1.7) / L.sx, field.cell * 0.7);
+
+        function toPlan(e) {
+          const rect = canvas.getBoundingClientRect();
+          const cx = e.clientX - rect.left;
+          const cy = e.clientY - rect.top;
+          if (cy < L.planTop || cy > L.planTop + L.planHeight) return null;
+          return { cx, cy, x: field.x0 + cx / L.sx, z: L.planZ0 + (cy - L.planTop) / L.sx };
+        }
+
+        canvas.addEventListener('pointerdown', (e) => {
+          const p = toPlan(e);
+          if (!p) return;
+          if (state.tool === 'text') {
+            const text = textInput.value.trim();
+            if (!text) {
+              toast('先在下方写好字，再点一下沙滩');
+              textInput.focus();
+              return;
+            }
+            stampText(text, p.x, p.z, textHeight());
+            textInput.value = '';
+            return;
+          }
+          canvas.setPointerCapture(e.pointerId);
+          drawing = { id: e.pointerId, x: p.x, z: p.z };
+          addDab(p.x, p.z, penRadius(), 0.9);
+        });
+
+        canvas.addEventListener('pointermove', (e) => {
+          const p = toPlan(e);
+          hover = p;
+          canvas.style.cursor = p ? (state.tool === 'text' ? 'text' : 'crosshair') : '';
+          if (!drawing || e.pointerId !== drawing.id || !p) return;
+          addStroke(drawing.x, drawing.z, p.x, p.z, penRadius());
+          drawing.x = p.x;
+          drawing.z = p.z;
+        });
+
+        const endDraw = (e) => {
+          if (drawing?.id === e.pointerId) drawing = null;
+        };
+        canvas.addEventListener('pointerup', endDraw);
+        canvas.addEventListener('pointercancel', endDraw);
+        canvas.addEventListener('pointerleave', () => (hover = null));
+
+        // 剖切位置：拖动平面左缘的 A，或聚焦后用方向键
+        function placeCutHandle() {
+          cutHandle.style.top = `${zy(state.cut)}px`;
+          cutHandle.setAttribute('aria-valuenow', String(Math.round(((state.cut - L.planZ0) / (L.planZ1 - L.planZ0)) * 100)));
+        }
+
+        function setCut(z) {
+          state.cut = clamp(z, L.planZ0 + 1.5, L.planZ1 - 1.5);
+          buildSection();
+          placeCutHandle();
+        }
+
+        cutHandle.addEventListener('pointerdown', (e) => {
+          cutHandle.setPointerCapture(e.pointerId);
+          e.preventDefault();
+        });
+        cutHandle.addEventListener('pointermove', (e) => {
+          if (!cutHandle.hasPointerCapture(e.pointerId)) return;
+          const rect = canvas.getBoundingClientRect();
+          setCut(L.planZ0 + (e.clientY - rect.top - L.planTop) / L.sx);
+        });
+        cutHandle.addEventListener('keydown', (e) => {
+          const step = e.shiftKey ? 5 : 1;
+          if (e.key === 'ArrowUp') setCut(state.cut - step);
+          else if (e.key === 'ArrowDown') setCut(state.cut + step);
+          else return;
+          e.preventDefault();
+        });
+
+        // 读数、潮汐表指针、诗与日月信息：每 100 毫秒刷新一次
+        let lastEmit = 0;
+        let poemIndex = -1;
+        const COMPASS = ['北', '东北', '东', '东南', '南', '西南', '西', '西北'];
+
+        function emit(force = false) {
+          const now = performance.now();
+          if (!force && day && now - lastEmit < 100) return;
+          lastEmit = now;
+          const c = coast();
+          const local = localParts(state.jd, c.tz);
+          if (!day || day.date !== local.date || day.coast !== c.id) {
+            day = describeDay(c, local.date);
+            day.coast = c.id;
+            renderTable();
+          }
+          const datum = chartDatum(c);
+          const level = levelAt(state.jd);
+          const rate = tideRate(c.model, state.jd, c.lon);
+          const next = findExtrema(c.model, c.lon, state.jd, state.jd + 0.6)[0];
+          $('clock').textContent = local.clock;
+          $('zone').textContent = c.tz === 'Asia/Tokyo' ? '日本时间' : '北京时间';
+          const dateInput = $('date');
+          if (document.activeElement !== dateInput) dateInput.value = local.date;
+          $('moon').textContent = `${moonPhaseName(state.jd)} · ${springNeap(state.jd)}`;
+          const sun = sunPosition(state.jd, c.lat, c.lon);
+          const alt = sun.alt / DEG;
+          const az = (((sun.az / DEG) % 360) + 360) % 360;
+          $('sun').textContent = alt > -0.8 ? `太阳 高 ${alt.toFixed(0)}° · 偏${COMPASS[Math.round(az / 45) % 8]}` : `太阳在地平线下 ${(-alt).toFixed(0)}°`;
+          $('r-height').textContent = (level - datum).toFixed(2);
+          $('r-trend').textContent = rate >= 0 ? '正在涨潮' : '正在落潮';
+          $('r-rate').textContent = Math.abs(rate * 100).toFixed(0);
+          if (next) {
+            const minutes = Math.round((next.jd - state.jd) * 1440);
+            $('r-next-label').textContent = `下次${next.kind === 'high' ? '高潮' : '低潮'}`;
+            $('r-next').textContent = localParts(next.jd, c.tz).clock;
+            $('r-next-in').textContent = `${Math.floor(minutes / 60)} 小时 ${minutes % 60} 分后`;
+          }
+          const p = clamp((state.jd - day.start) / (day.end - day.start), 0, 1);
+          $('table-head').style.left = `${p * 100}%`;
+          $('table-clock').textContent = local.clock;
+          tablePlot.setAttribute('aria-valuenow', String(Math.round(p * 1440)));
+          tablePlot.setAttribute('aria-valuetext', `当地时间 ${local.clock}`);
+          // 诗：每四分之一个半日潮（约 3.1 小时）换一段，与工程版同一节奏
+          const index = ((Math.floor((state.jd * 24) / 3.105) % POEMS.length) + POEMS.length) % POEMS.length;
+          if (index !== poemIndex) {
+            poemIndex = index;
+            const poem = POEMS[index];
+            $('verse-zh').replaceChildren(
+              ...poem.zh.split(/(?<=[，；])/).map((clause) => {
+                const span = document.createElement('span');
+                span.textContent = clause;
+                return span;
+              }),
+            );
+            $('verse-en').textContent = poem.en;
+            const verse = $('verse');
+            verse.style.animation = 'none';
+            void verse.offsetWidth;
+            verse.style.animation = '';
+          }
+        }
+
+        /**
+         * 界面色调：按天光带回差在两态之间切换，再用 1.2 秒过渡。
+         * 线性跟随天光会在黄昏把墨色和底色一起推到中灰，文字几乎看不见。
+         */
+        function updateTone(daylight, now) {
+          const prev = state.toneTarget;
+          const target = daylight > 0.55 ? 1 : daylight < 0.45 ? 0 : (prev ?? (daylight >= 0.5 ? 1 : 0));
+          if (target !== prev) {
+            state.toneTarget = target;
+            state.toneFrom = state.tone;
+            state.toneStart = prev === null ? now - 1200 : now;
+          }
+          const k = clamp((now - state.toneStart) / 1200, 0, 1);
+          state.tone = mix(state.toneFrom, target, k * k * (3 - 2 * k));
+          const ink = mixRgb([236, 230, 217], [34, 33, 29], state.tone).map(Math.round);
+          const veil = paperNow().map(Math.round);
+          const root = document.documentElement.style;
+          root.setProperty('--ink-rgb', ink.join(' '));
+          root.setProperty('--veil-rgb', veil.join(' '));
+          root.colorScheme = state.tone > 0.5 ? 'light' : 'dark';
+          return ink;
+        }
+
+        const paperNow = () => mixRgb(NIGHT_PAPER, PAPER, state.tone);
+
+        // ═══ 主循环 ═══════════════════════════════════════════════════════
+        let last = performance.now();
+        let slowFrames = 0;
+
+        function frame(now) {
+          requestAnimationFrame(frame);
+          const dt = Math.min(0.1, (now - last) / 1000);
+          last = now;
+          if (document.hidden) return;
+          const started = performance.now();
+          state.time += dt * (reduceMotion ? 0.4 : 1);
+          if (state.playing) state.jd += (dt * state.speed) / 86400;
+          const c = coast();
+          state.level = levelAt(state.jd);
+          const sky = skyState(state.jd, c);
+          const ink = updateTone(sky.daylight, now);
+
+          // 暂停只停潮汐钟：浪照常拍岸，场按真实时间推进
+          if (state.needsWarmup) {
+            warmup();
+            state.needsWarmup = false;
+          }
+          stepField(state.level, state.time, (dt * (state.playing ? state.speed : 1)) / 3600);
+          updateSection(state.level, state.time);
+          emit();
+
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+          ctx.fillStyle = css(paperNow());
+          ctx.fillRect(0, 0, W, H);
+          drawSky(sky);
+          drawStars(sky, state.time);
+          drawDome(sky, ink, day);
+          drawSection(sky, ink, state.time);
+          drawSectionNotes(ink, day);
+          shadePlan(sky, state.time);
+          drawPlan(ink);
+          drawProjection(ink);
+          drawGhost(ink);
+          updateAudio(dt);
+
+          // 持续掉帧时降到 1 倍像素密度
+          if (performance.now() - started > 26) slowFrames++;
+          else slowFrames = Math.max(0, slowFrames - 1);
+          if (slowFrames > 90 && dpr > 1) {
+            dpr = 1;
+            slowFrames = 0;
+            layout();
+          }
+        }
+
+        document.addEventListener('visibilitychange', () => {
+          last = performance.now();
+          if (!surf.ctx) return;
+          if (document.hidden) void surf.ctx.suspend();
+          else if (surf.enabled) void surf.ctx.resume();
+        });
+
+        let resizeTimer = 0;
+        window.addEventListener('resize', () => {
+          clearTimeout(resizeTimer);
+          resizeTimer = setTimeout(() => {
+            // 跨过窄屏 / 宽屏的分界时换一套取景，场随之重建
+            const narrow = window.innerWidth < 760;
+            if (narrow !== L.narrow) {
+              buildField(coast());
+              walkFootprints();
+              state.needsWarmup = true;
+              state.cut = 0;
+            }
+            layout();
+          }, 120);
+        });
+
+        // ═══ 调试接口 ═════════════════════════════════════════════════════
+        // 仅给验收脚本用（tide-showcase/scripts/simple-audit.ts），页面自己的逻辑不读它。
+        window.__TIDE__ = {
+          variant: 'simple',
+          snapshot: () => {
+            const c = coast();
+            const local = localParts(state.jd, c.tz);
+            return { jd: state.jd, date: local.date, clock: local.clock, coast: c.id, level: state.level, rate: tideRate(c.model, state.jd, c.lon), playing: state.playing, speed: state.speed, cut: state.cut };
+          },
+          setTime: (jd) => setTime(jd),
+          setPlaying: (on) => {
+            if (state.playing !== on) togglePlay();
+          },
+          setSpeed: (speed) => {
+            state.speed = speed;
+            syncControls();
+          },
+          setCut: (z) => setCut(z),
+          writeText: (text, x, z, heightM = textHeight()) => stampText(text, x, z, heightM),
+          shoreline: (z) => shorelineX(state.level, z),
+          fieldAt: (x, z, radius = 0) => {
+            const f = field;
+            let best = [0, 0, 0];
+            const r = Math.ceil(radius / f.cell);
+            const ci = Math.floor((x - f.x0) / f.cell);
+            const cj = Math.floor((z - f.z0) / f.cell);
+            for (let j = Math.max(0, cj - r); j <= Math.min(f.nz - 1, cj + r); j++) {
+              for (let i = Math.max(0, ci - r); i <= Math.min(f.nx - 1, ci + r); i++) {
+                const k = j * f.nx + i;
+                if (f.trace[k] >= best[1]) best = [f.wet[k], f.trace[k], f.foam[k]];
+              }
+            }
+            return best;
+          },
+          view: () => ({ x0: field.x0, x1: field.x1, z0: L.planZ0, z1: L.planZ1, planTop: L.planTop, planHeight: L.planHeight, sx: L.sx }),
+        };
+
+        // ═══ 启动 ═════════════════════════════════════════════════════════
+        readUrl();
+        buildField(coast());
+        layout();
+        state.level = levelAt(state.jd);
+        walkFootprints();
+        syncControls();
+        emit(true);
+        requestAnimationFrame(frame);
+        setTimeout(() => toast('在下方平面里拖动就能在沙上写字，涨潮会把它收回', 5200), 900);
+      })();
+    </script>
+  </body>
+</html>
